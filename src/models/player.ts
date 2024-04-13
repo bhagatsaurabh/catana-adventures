@@ -1,21 +1,22 @@
-import { Types } from 'phaser';
+import { Animations, Types } from 'phaser';
 import { PlayerAnimationType, PlayerInput, PlayerInputs } from '../types/types';
 import { Game } from '../scenes/game';
-import { clamp } from '../utils';
+import { clamp, denormalize, normalize } from '../utils';
 import { InputManager } from '../helpers/input-manager';
 import { PlayerConfig } from '../types/interfaces';
 
 export class Player {
   controller: {
     sprite: Phaser.Physics.Matter.Sprite;
+    prevBlocked: { left: boolean; right: boolean; bottom: boolean };
     blocked: { left: boolean; right: boolean; bottom: boolean };
     sensors: { left: MatterJS.BodyType; right: MatterJS.BodyType; bottom: MatterJS.BodyType };
     numTouchingSurfaces: { left: number; right: number; bottom: number };
     lastJumpedAt: number;
   };
-  config: PlayerConfig = { maxRunSpeed: 5, speedModifier: 10, dragModifier: 4, jumpSpeed: 8 };
+  config: PlayerConfig = { maxRunSpeed: 3, speedModifier: 0.01, dragModifier: 0.01, jumpPower: 7 };
   dimensions: { w: number; h: number; sx: number; sy: number };
-  animations: Partial<Record<PlayerAnimationType, Phaser.Animations.Animation | false>>;
+  animations: Partial<Record<PlayerAnimationType, Animations.Animation | false>>;
   speed: number = 0;
 
   get x(): number {
@@ -30,8 +31,6 @@ export class Player {
     this.setPhysics();
     this.setAnimations();
     this.setHandlers();
-
-    this.controller.sprite.play('idle', true);
   }
 
   private setController() {
@@ -46,6 +45,11 @@ export class Player {
 
     this.controller = {
       sprite,
+      prevBlocked: {
+        left: false,
+        right: false,
+        bottom: false,
+      },
       blocked: {
         left: false,
         right: false,
@@ -57,9 +61,9 @@ export class Player {
         bottom: 0,
       },
       sensors: {
-        left: this.game.matter.bodies.rectangle(sx - w * 0.45, sy, 5, h * 0.25, { isSensor: true }),
-        right: this.game.matter.bodies.rectangle(sx + w * 0.45, sy, 5, h * 0.25, { isSensor: true }),
-        bottom: this.game.matter.bodies.rectangle(sx, h, sx, 5, { isSensor: true }),
+        left: this.game.matter.bodies.rectangle(sx - w * 0.35, sy, 5, h * 0.25, { isSensor: true }),
+        right: this.game.matter.bodies.rectangle(sx + w * 0.35, sy, 5, h * 0.25, { isSensor: true }),
+        bottom: this.game.matter.bodies.rectangle(sx, h - 2, sx, 5, { isSensor: true }),
       },
       lastJumpedAt: 0,
     };
@@ -68,8 +72,8 @@ export class Player {
     const body = this.game.matter.bodies.rectangle(
       this.dimensions.sx,
       this.dimensions.sy,
-      this.dimensions.w * 0.75,
-      this.dimensions.h,
+      this.dimensions.w * 0.55,
+      this.dimensions.h - 2,
       { chamfer: { radius: 10 } },
     );
     const compoundBody = this.game.matter.body.create({
@@ -80,51 +84,57 @@ export class Player {
     this.controller.sprite.setExistingBody(compoundBody).setFixedRotation().setPosition(32, 800);
   }
   private setAnimations() {
-    const idle = this.game.anims.create({
+    const idle = this.controller.sprite.anims.create({
       key: 'idle',
-      frames: this.game.anims.generateFrameNumbers('neko', { start: 0, end: 3 }),
+      frames: this.controller.sprite.anims.generateFrameNumbers('neko', { start: 0, end: 3 }),
       frameRate: 10,
       repeat: -1,
     });
-    const walk = this.game.anims.create({
+    const walk = this.controller.sprite.anims.create({
       key: 'walk',
-      frames: this.game.anims.generateFrameNumbers('neko', { start: 13, end: 20 }),
-      frameRate: 10,
+      frames: this.controller.sprite.anims.generateFrameNumbers('neko', { start: 13, end: 20 }),
+      frameRate: 30,
       repeat: -1,
     });
-    const jump = this.game.anims.create({
+    const jump = this.controller.sprite.anims.create({
       key: 'jump',
-      frames: this.game.anims.generateFrameNumbers('neko', { start: 26, end: 33 }),
-      frameRate: 10,
+      frames: this.controller.sprite.anims.generateFrameNumbers('neko', { start: 28, end: 29 }),
+      frameRate: 20,
+      repeat: -1,
+    });
+    const jumpLand = this.controller.sprite.anims.create({
+      key: 'jump-land',
+      frames: this.controller.sprite.anims.generateFrameNumbers('neko', { start: 30, end: 33 }),
+      frameRate: 20,
       repeat: 0,
     });
-    const dead = this.game.anims.create({
+    const dead = this.controller.sprite.anims.create({
       key: 'dead',
-      frames: this.game.anims.generateFrameNumbers('neko', { start: 39, end: 45 }),
+      frames: this.controller.sprite.anims.generateFrameNumbers('neko', { start: 39, end: 45 }),
       frameRate: 10,
       repeat: 0,
     });
-    const powerAttack = this.game.anims.create({
+    const powerAttack = this.controller.sprite.anims.create({
       key: 'power-attack',
-      frames: this.game.anims.generateFrameNumbers('neko', { start: 52, end: 58 }),
+      frames: this.controller.sprite.anims.generateFrameNumbers('neko', { start: 52, end: 58 }),
       frameRate: 10,
       repeat: -1,
     });
-    const fastAttack = this.game.anims.create({
+    const fastAttack = this.controller.sprite.anims.create({
       key: 'fast-attack',
-      frames: this.game.anims.generateFrameNumbers('neko', { start: 65, end: 70 }),
+      frames: this.controller.sprite.anims.generateFrameNumbers('neko', { start: 65, end: 70 }),
       frameRate: 10,
       repeat: -1,
     });
-    const comboAttack = this.game.anims.create({
+    const comboAttack = this.controller.sprite.anims.create({
       key: 'combo-attack',
-      frames: this.game.anims.generateFrameNumbers('neko', { start: 78, end: 87 }),
+      frames: this.controller.sprite.anims.generateFrameNumbers('neko', { start: 78, end: 87 }),
       frameRate: 10,
       repeat: -1,
     });
-    const comboKick = this.game.anims.create({
+    const comboKick = this.controller.sprite.anims.create({
       key: 'combo-kick',
-      frames: this.game.anims.generateFrameNumbers('neko', { start: 91, end: 102 }),
+      frames: this.controller.sprite.anims.generateFrameNumbers('neko', { start: 91, end: 102 }),
       frameRate: 24,
       repeat: -1,
     });
@@ -133,15 +143,15 @@ export class Player {
       idle,
       walk,
       jump,
+      'jump-land': jumpLand,
       dead,
       'power-attack': powerAttack,
       'fast-attack': fastAttack,
       'combo-attack': comboAttack,
       'combo-kick': comboKick,
     };
-    /*
-    player.animations.add('jump', [29, 30], 15, true);
-    player.animations.add('die', [1, 2, 31, 34, 32, 33, 32], 7, false);
+
+    /*player.animations.add('die', [1, 2, 31, 34, 32, 33, 32], 7, false);
     player.animations.add('hurt', [2], 5, true);
     player.animations.add('action_combo', [36, 37, 0, 38, 39, 40, 41, 42, 40, 43, 44, 40, 45, 46], 15, false);
     player.animations.add('action_khh', [10, 11, 12, 11, 12, 11, 12, 11, 12, 13, 14, 15, 14, 15, 14, 15], 13, false);
@@ -169,6 +179,7 @@ export class Player {
     if (input[PlayerInput.JUMP]) {
       this.jump(delta, time);
     }
+
     if (input[PlayerInput.CROUCH]) {
       // this.duck(delta, time);
     }
@@ -184,14 +195,51 @@ export class Player {
     if (input[PlayerInput.COMBO_KICK]) {
       // this.comboKick(delta, time);
     }
+  }
 
-    // this.playSounds();
+  blockAnimation = false;
+  private animate(input: PlayerInputs) {
+    if (this.blockAnimation) {
+      if (input[PlayerInput.RIGHT] || input[PlayerInput.LEFT] || input[PlayerInput.JUMP]) {
+        this.blockAnimation = false;
+      }
+      return;
+    }
+
+    if (
+      (this.controller.sprite.flipX && input[PlayerInput.RIGHT]) ||
+      (!this.controller.sprite.flipX && input[PlayerInput.LEFT])
+    ) {
+      this.controller.sprite.flipX = !this.controller.sprite.flipX;
+    }
+
+    // On-ground or in-air
+    if (this.controller.blocked.bottom) {
+      // Neko landed
+      if (!this.controller.prevBlocked.bottom) {
+        this.blockAnimation = true;
+        this.controller.sprite.anims.play('jump-land', true).once(Animations.Events.ANIMATION_COMPLETE, () => {
+          this.blockAnimation = false;
+        });
+        return;
+      }
+      // Moving or Still
+      if (Math.abs(this.speed) > 0) {
+        this.controller.sprite.anims.get('walk').msPerFrame = denormalize(
+          normalize(Math.abs(this.speed), 0, this.config.maxRunSpeed),
+          0,
+          1000 / 30,
+        );
+        this.controller.sprite.anims.play('walk', true);
+      } else {
+        this.controller.sprite.anims.play('idle', true);
+      }
+    } else {
+      this.controller.sprite.anims.play('jump', true);
+    }
   }
 
   private walk(delta: number, _time: number, isLeft = false) {
-    this.controller.sprite.anims.play('walk', true);
-    this.controller.sprite.setFlipX(isLeft);
-
     if (isLeft) {
       this.speed = clamp(
         this.speed - delta * this.config.speedModifier,
@@ -211,13 +259,16 @@ export class Player {
   private jump(_delta: number, time: number) {
     if (time - this.controller.lastJumpedAt > 250 && this.controller.blocked.bottom) {
       this.controller.lastJumpedAt = time;
-      this.controller.sprite.setVelocityY(-this.config.jumpSpeed);
+      this.controller.sprite.setVelocityY(-this.config.jumpPower);
     }
   }
   private stop(delta: number, _time: number) {
-    if (Math.abs(this.speed) < 0.1) {
+    if (this.speed === 0) {
+      return;
+    }
+
+    if (Math.abs(this.speed) <= 0.1) {
       this.speed = 0;
-      this.controller.sprite.anims.play('idle', true);
     } else {
       this.speed = clamp(
         this.speed + Math.sign(this.speed) * -1 * delta * this.config.dragModifier,
@@ -231,34 +282,8 @@ export class Player {
 
   private beforeUpdate(delta: number, time: number) {
     this.applyInputs(delta, time, InputManager.input);
-
-    if (this.game.cursors.left.isDown) {
-      /* const newSpeed = clamp(
-        this.controller.sprite.body!.velocity.x - delta * 0.1,
-        -this.controller.speed.run,
-        this.controller.speed.run,
-      ); */
-      // this.controller.sprite.setVelocityX(
-      //   newSpeed,
-      //   /* Phaser.Math.Linear(this.controller.sprite.body!.velocity.x, newSpeed, this.controlT), */
-      // );
-    } else if (this.game.cursors.right.isDown) {
-      /* this.controller.sprite.anims.play('walk', true);
-      this.controller.sprite.setFlipX(false); */
-      // this.controlT = clamp(this.controlT + delta * 0.001, -1, 1);
-      /* const newSpeed = clamp(
-        this.controller.sprite.body!.velocity.x + delta * 0.1,
-        -this.controller.speed.run,
-        this.controller.speed.run,
-      ); */
-      // this.controller.sprite.setVelocityX(
-      //   newSpeed,
-      //   /* Phaser.Math.Linear(this.controller.sprite.body!.velocity.x, this.controller.speed.run, this.controlT), */
-      // );
-    } else {
-      /* this.controlT = 0;
-      this.controller.sprite.anims.play('idle', true); */
-    }
+    this.animate(InputManager.input);
+    // this.playSounds();
 
     this.controller.numTouchingSurfaces.left = 0;
     this.controller.numTouchingSurfaces.right = 0;
@@ -286,10 +311,12 @@ export class Player {
     }
   }
   private afterUpdate() {
+    this.controller.prevBlocked.right = this.controller.blocked.right;
+    this.controller.prevBlocked.left = this.controller.blocked.left;
+    this.controller.prevBlocked.bottom = this.controller.blocked.bottom;
+
     this.controller.blocked.right = this.controller.numTouchingSurfaces.right > 0 ? true : false;
     this.controller.blocked.left = this.controller.numTouchingSurfaces.left > 0 ? true : false;
     this.controller.blocked.bottom = this.controller.numTouchingSurfaces.bottom > 0 ? true : false;
   }
-
-  // update(time: number, delta: number, cursors: Types.Input.Keyboard.CursorKeys) {}
 }

@@ -19,7 +19,12 @@ export class Preloader extends Scene {
 
     this.load.tilemapTiledJSON('level-1-1', 'maps/level-1-1.json');
     this.load.image('tiles-landscape', 'spritesheets/tiles-landscape.png');
-    this.load.spritesheet('neko', 'spritesheets/neko_final.png', { frameWidth: 32, frameHeight: 32 });
+    this.load.spritesheet('neko', 'spritesheets/neko.png', { frameWidth: 32, frameHeight: 32 });
+    this.load.image('cloud1', 'sprites/cloud1.png');
+    this.load.image('cloud2', 'sprites/cloud2.png');
+    this.load.image('cloud3', 'sprites/cloud3.png');
+    this.load.image('bg-forest-1', 'sprites/bg-forest-1.png');
+    this.load.image('bg-forest-2', 'sprites/bg-forest-2.png');
   }
 
   create() {
