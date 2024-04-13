@@ -20,13 +20,10 @@ const config: Types.Core.GameConfig = {
   physics: {
     default: 'matter',
     matter: {
-      enableSleeping: true,
-      /* // @ts-ignore
-      gravity: { y: 0 }, */
-      debug: {
+      /* debug: {
         showBody: true,
         showStaticBody: true,
-      },
+      }, */
     },
   },
   disableContextMenu: true,

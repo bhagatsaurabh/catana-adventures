@@ -1,6 +1,6 @@
 export interface PlayerConfig {
   maxRunSpeed: number;
-  jumpSpeed: number;
+  jumpPower: number;
   speedModifier: number;
   dragModifier: number;
 }

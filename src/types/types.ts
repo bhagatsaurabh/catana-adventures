@@ -1,7 +1,9 @@
 export type PlayerAnimationType =
   | 'idle'
   | 'walk'
+  | 'jump-ready'
   | 'jump'
+  | 'jump-land'
   | 'dead'
   | 'power-attack'
   | 'fast-attack'
