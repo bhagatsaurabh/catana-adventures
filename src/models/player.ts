@@ -4,6 +4,7 @@ import { Game } from '../scenes/game';
 import { clamp, denormalize, normalize } from '../utils';
 import { InputManager } from '../helpers/input-manager';
 import { PlayerConfig } from '../types/interfaces';
+import { Fireball } from './fireball';
 
 export class Player {
   controller: {
@@ -13,11 +14,22 @@ export class Player {
     sensors: { left: MatterJS.BodyType; right: MatterJS.BodyType; bottom: MatterJS.BodyType };
     numTouchingSurfaces: { left: number; right: number; bottom: number };
     lastJumpedAt: number;
+    lastFastAttackAt: number;
+    lastPowerAttackAt: number;
   };
-  config: PlayerConfig = { maxRunSpeed: 3, speedModifier: 0.01, dragModifier: 0.01, jumpPower: 7 };
+  config: PlayerConfig = {
+    maxRunSpeed: 3,
+    speedModifier: 0.01,
+    dragModifier: 0.01,
+    jumpPower: 7,
+    fastAttackCooldown: 1200,
+    powerAttackCooldown: 1500,
+  };
   dimensions: { w: number; h: number; sx: number; sy: number };
   animations: Partial<Record<PlayerAnimationType, Animations.Animation | false>>;
   speed: number = 0;
+  private standingBody: MatterJS.BodyType;
+  private standingSensors: { left: MatterJS.BodyType; right: MatterJS.BodyType; bottom: MatterJS.BodyType };
 
   get x(): number {
     return this.controller.sprite.x;
@@ -31,6 +43,8 @@ export class Player {
     this.setPhysics();
     this.setAnimations();
     this.setHandlers();
+
+    this.controller.sprite.setScale(1.5, 1.5);
   }
 
   private setController() {
@@ -42,6 +56,12 @@ export class Player {
     const sy = h / 2;
 
     this.dimensions = { w, h, sx, sy };
+
+    this.standingSensors = {
+      left: this.game.matter.bodies.rectangle(sx - w * 0.35 + 2.5, h, 5, h * 0.25, { isSensor: true }),
+      right: this.game.matter.bodies.rectangle(sx + w * 0.35 - 2.5, h, 5, h * 0.25, { isSensor: true }),
+      bottom: this.game.matter.bodies.rectangle(sx, h * 1.5 - 1.5, sx * 0.75, 5, { isSensor: true }),
+    };
 
     this.controller = {
       sprite,
@@ -60,28 +80,32 @@ export class Player {
         right: 0,
         bottom: 0,
       },
-      sensors: {
-        left: this.game.matter.bodies.rectangle(sx - w * 0.35, sy, 5, h * 0.25, { isSensor: true }),
-        right: this.game.matter.bodies.rectangle(sx + w * 0.35, sy, 5, h * 0.25, { isSensor: true }),
-        bottom: this.game.matter.bodies.rectangle(sx, h - 2, sx, 5, { isSensor: true }),
-      },
+      sensors: this.standingSensors,
       lastJumpedAt: 0,
+      lastFastAttackAt: 0,
+      lastPowerAttackAt: 0,
     };
   }
   private setPhysics() {
-    const body = this.game.matter.bodies.rectangle(
+    const bodyS = this.game.matter.bodies.rectangle(
       this.dimensions.sx,
-      this.dimensions.sy,
+      this.dimensions.h,
       this.dimensions.w * 0.55,
-      this.dimensions.h - 2,
+      this.dimensions.h - 3,
       { chamfer: { radius: 10 } },
     );
-    const compoundBody = this.game.matter.body.create({
-      parts: [body, this.controller.sensors.bottom, this.controller.sensors.left, this.controller.sensors.right],
+
+    this.standingBody = this.game.matter.body.create({
+      parts: [bodyS, this.standingSensors.bottom, this.standingSensors.left, this.standingSensors.right],
       restitution: 0.05,
     });
 
-    this.controller.sprite.setExistingBody(compoundBody).setFixedRotation().setPosition(32, 800);
+    this.controller.sprite.setExistingBody(this.standingBody).setFixedRotation().setPosition(32, 800);
+    this.game.matter.body.setCentre(
+      this.controller.sprite.body as MatterJS.BodyType,
+      { x: 0, y: this.dimensions.h / 2 },
+      true,
+    );
   }
   private setAnimations() {
     const idle = this.controller.sprite.anims.create({
@@ -117,26 +141,38 @@ export class Player {
     const powerAttack = this.controller.sprite.anims.create({
       key: 'power-attack',
       frames: this.controller.sprite.anims.generateFrameNumbers('neko', { start: 52, end: 58 }),
-      frameRate: 10,
-      repeat: -1,
+      frameRate: 18,
+      repeat: 0,
     });
     const fastAttack = this.controller.sprite.anims.create({
       key: 'fast-attack',
       frames: this.controller.sprite.anims.generateFrameNumbers('neko', { start: 65, end: 70 }),
-      frameRate: 10,
-      repeat: -1,
+      frameRate: 60,
+      repeat: 0,
     });
     const comboAttack = this.controller.sprite.anims.create({
       key: 'combo-attack',
       frames: this.controller.sprite.anims.generateFrameNumbers('neko', { start: 78, end: 87 }),
-      frameRate: 10,
-      repeat: -1,
+      frameRate: 15,
+      repeat: 0,
     });
     const comboKick = this.controller.sprite.anims.create({
       key: 'combo-kick',
       frames: this.controller.sprite.anims.generateFrameNumbers('neko', { start: 91, end: 102 }),
+      frameRate: 20,
+      repeat: 0,
+    });
+    const crouchIn = this.controller.sprite.anims.create({
+      key: 'crouch-in',
+      frames: this.controller.sprite.anims.generateFrameNumbers('neko', { start: 104, end: 106 }),
       frameRate: 24,
-      repeat: -1,
+      repeat: 0,
+    });
+    const crouchOut = this.controller.sprite.anims.create({
+      key: 'crouch-out',
+      frames: this.controller.sprite.anims.generateFrameNumbers('neko', { start: 106, end: 108 }),
+      frameRate: 24,
+      repeat: 0,
     });
 
     this.animations = {
@@ -149,16 +185,9 @@ export class Player {
       'fast-attack': fastAttack,
       'combo-attack': comboAttack,
       'combo-kick': comboKick,
+      'crouch-in': crouchIn,
+      'crouch-out': crouchOut,
     };
-
-    /*player.animations.add('die', [1, 2, 31, 34, 32, 33, 32], 7, false);
-    player.animations.add('hurt', [2], 5, true);
-    player.animations.add('action_combo', [36, 37, 0, 38, 39, 40, 41, 42, 40, 43, 44, 40, 45, 46], 15, false);
-    player.animations.add('action_khh', [10, 11, 12, 11, 12, 11, 12, 11, 12, 13, 14, 15, 14, 15, 14, 15], 13, false);
-    player.animations.add('getgun', [60, 61, 62, 63], 12, false);
-    player.animations.add('idle_gun', [65, 66, 67, 68, 69, 70, 71, 72], 10, true);
-    player.animations.add('walk_gun', [83, 84, 85, 86, 87, 88, 89, 90], 10, true);
-    player.animations.add('jump_gun', [112, 113], 10, true); */
   }
   private setHandlers() {
     this.game.matter.world.on('beforeupdate', (event: { delta: number; timestamp: number }) =>
@@ -170,38 +199,60 @@ export class Player {
     this.game.matter.world.on('afterupdate', () => this.afterUpdate());
   }
 
+  prevInput: PlayerInputs = {};
+  isDucking = false;
   applyInputs(delta: number, time: number, input: PlayerInputs) {
+    let isMoving = false;
     if (input[PlayerInput.LEFT] || input[PlayerInput.RIGHT]) {
+      isMoving = true;
       this.walk(delta, time, input[PlayerInput.LEFT]);
     } else {
       this.stop(delta, time);
     }
+
+    let isJumping = false;
     if (input[PlayerInput.JUMP]) {
+      isJumping = true;
       this.jump(delta, time);
     }
 
-    if (input[PlayerInput.CROUCH]) {
-      // this.duck(delta, time);
+    if (
+      ((!this.prevInput[PlayerInput.CROUCH] && input[PlayerInput.CROUCH]) ||
+        (input[PlayerInput.CROUCH] /* && !this.controller.prevBlocked.bottom */ && this.controller.blocked.bottom)) &&
+      !isMoving &&
+      !isJumping
+    ) {
+      this.duckIn(delta, time);
+    } else if (this.prevInput[PlayerInput.CROUCH] && !input[PlayerInput.CROUCH]) {
+      this.duckOut(delta, time);
+    }
+    if ((isMoving || isJumping) && this.isDucking) {
+      this.isDucking = false;
+      this.game.matter.body.scale(this.controller.sprite.body as MatterJS.BodyType, 1, 2);
+    }
+
+    if (input[PlayerInput.FAST_ATTACK]) {
+      this.fastAttack(delta, time);
     }
     if (input[PlayerInput.POWER_ATTACK]) {
-      // this.powerAttack(delta, time);
+      this.powerAttack(delta, time);
     }
-    if (input[PlayerInput.FAST_ATTACK]) {
-      // this.fastAttack(delta, time);
+
+    if (input[PlayerInput.COMBO_ATTACK] && !isMoving && !isJumping) {
+      this.comboAttack(delta, time);
     }
-    if (input[PlayerInput.COMBO_ATTACK]) {
-      // this.comboAttack(delta, time);
+    if (input[PlayerInput.COMBO_KICK] && !isMoving && !isJumping) {
+      this.comboKick(delta, time);
     }
-    if (input[PlayerInput.COMBO_KICK]) {
-      // this.comboKick(delta, time);
-    }
+
+    this.prevInput = structuredClone(input);
   }
 
-  blockAnimation = false;
+  blockAnimation: string | null = null;
   private animate(input: PlayerInputs) {
     if (this.blockAnimation) {
-      if (input[PlayerInput.RIGHT] || input[PlayerInput.LEFT] || input[PlayerInput.JUMP]) {
-        this.blockAnimation = false;
+      if (input[PlayerInput.RIGHT] || input[PlayerInput.LEFT] || input[PlayerInput.JUMP] || input[PlayerInput.CROUCH]) {
+        this.blockAnimation = null;
       }
       return;
     }
@@ -215,11 +266,17 @@ export class Player {
 
     // On-ground or in-air
     if (this.controller.blocked.bottom) {
+      // Neko ducking
+      if (this.isDucking) {
+        this.controller.sprite.anims.currentAnim?.key !== 'crouch-in' &&
+          this.controller.sprite.anims.play('crouch-in', true);
+        return;
+      }
       // Neko landed
       if (!this.controller.prevBlocked.bottom) {
-        this.blockAnimation = true;
+        this.blockAnimation = 'jump-land';
         this.controller.sprite.anims.play('jump-land', true).once(Animations.Events.ANIMATION_COMPLETE, () => {
-          this.blockAnimation = false;
+          this.blockAnimation = null;
         });
         return;
       }
@@ -279,6 +336,71 @@ export class Player {
 
     this.controller.sprite.setVelocityX(this.speed);
   }
+  private duckIn(_delta: number, _time: number) {
+    if (this.controller.blocked.bottom && !this.isDucking) {
+      this.game.matter.body.scale(this.controller.sprite.body as MatterJS.BodyType, 1, 0.5);
+
+      this.isDucking = true;
+    }
+  }
+  private duckOut(_delta: number, _time: number) {
+    if (this.isDucking) {
+      this.game.matter.body.scale(this.controller.sprite.body as MatterJS.BodyType, 1, 2);
+
+      this.isDucking = false;
+
+      this.blockAnimation = 'crouch-out';
+      this.controller.sprite.anims.play('crouch-out', true).once(Animations.Events.ANIMATION_COMPLETE, () => {
+        this.blockAnimation = null;
+      });
+    }
+  }
+  private fastAttack(_delta: number, time: number) {
+    if (time - this.controller.lastFastAttackAt >= this.config.fastAttackCooldown) {
+      this.blockAnimation = 'fast-attack';
+      this.controller.sprite.anims.play('fast-attack', true).once(Animations.Events.ANIMATION_COMPLETE, () => {
+        this.blockAnimation = null;
+      });
+
+      new Fireball(this.game, 'low');
+      this.controller.lastFastAttackAt = time;
+    }
+  }
+  private powerAttack(_delta: number, time: number) {
+    if (!this.controller.blocked.bottom) return;
+
+    if (time - this.controller.lastPowerAttackAt >= this.config.powerAttackCooldown) {
+      this.blockAnimation = 'power-attack';
+      this.controller.sprite.anims.play('power-attack', true).once(Animations.Events.ANIMATION_COMPLETE, () => {
+        this.blockAnimation === 'power-attack' && new Fireball(this.game, 'high');
+        this.blockAnimation = null;
+      });
+
+      this.controller.lastPowerAttackAt = time;
+    }
+  }
+  private comboAttack(_delta: number, _time: number) {
+    if (!this.controller.blocked.bottom) return;
+
+    if (!this.blockAnimation) {
+      this.blockAnimation = 'combo-attack';
+      this.controller.sprite.anims.play('combo-attack', true).once(Animations.Events.ANIMATION_COMPLETE, () => {
+        // this.blockAnimation === 'combo-attack' && new Fireball(this.game, 'high');
+        this.blockAnimation = null;
+      });
+    }
+  }
+  private comboKick(_delta: number, _time: number) {
+    if (!this.controller.blocked.bottom) return;
+
+    if (!this.blockAnimation) {
+      this.blockAnimation = 'combo-kick';
+      this.controller.sprite.anims.play('combo-kick', true).once(Animations.Events.ANIMATION_COMPLETE, () => {
+        // this.blockAnimation === 'combo-attack' && new Fireball(this.game, 'high');
+        this.blockAnimation = null;
+      });
+    }
+  }
 
   private beforeUpdate(delta: number, time: number) {
     this.applyInputs(delta, time, InputManager.input);
@@ -296,7 +418,6 @@ export class Player {
     const bottom = this.controller.sensors.bottom;
 
     for (let i = 0; i < event.pairs.length; i += 1) {
-      event.pairs[i].bodyA;
       const [bodyA, bodyB] = [event.pairs[i].bodyA, event.pairs[i].bodyB];
 
       if (bodyA === playerBody || bodyB === playerBody) {

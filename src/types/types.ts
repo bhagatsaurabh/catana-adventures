@@ -8,7 +8,9 @@ export type PlayerAnimationType =
   | 'power-attack'
   | 'fast-attack'
   | 'combo-attack'
-  | 'combo-kick';
+  | 'combo-kick'
+  | 'crouch-in'
+  | 'crouch-out';
 
 export enum PlayerInput {
   LEFT,
