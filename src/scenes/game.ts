@@ -34,7 +34,7 @@ export class Game extends Scene {
 
     this.camera = this.cameras.main;
     this.camera.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
-    this.camera.setBackgroundColor('#000000');
+    this.camera.setBackgroundColor('#CEE6CF');
     this.smoothMoveCameraTowards(this.player);
 
     InputManager.setup();
@@ -42,7 +42,6 @@ export class Game extends Scene {
     this.input.once('pointerdown', () => {
       this.scene.start('gameover');
     });
-    // this.smoothedControls = new SmoothedHorionztalControl(0.001);
 
     this.ui.fps = this.add.text(16, 16, `FPS: ${this.game.loop.actualFps.toFixed(1)}`, {
       fontSize: '20px',
