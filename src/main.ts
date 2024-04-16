@@ -20,10 +20,10 @@ const config: Types.Core.GameConfig = {
   physics: {
     default: 'matter',
     matter: {
-      /* debug: {
+      debug: {
         showBody: true,
         showStaticBody: true,
-      }, */
+      },
     },
   },
   disableContextMenu: true,

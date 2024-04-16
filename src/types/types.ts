@@ -7,8 +7,6 @@ export type PlayerAnimationType =
   | 'dead'
   | 'power-attack'
   | 'fast-attack'
-  | 'combo-attack'
-  | 'combo-kick'
   | 'crouch-in'
   | 'crouch-out';
 
@@ -19,8 +17,6 @@ export enum PlayerInput {
   CROUCH,
   POWER_ATTACK,
   FAST_ATTACK,
-  COMBO_ATTACK,
-  COMBO_KICK,
 }
 
 export enum KeyInput {
@@ -32,8 +28,6 @@ export enum KeyInput {
   KEY_CTRL_RIGHT = 'ControlRight',
   KEY_SHIFT_LEFT = 'ShiftLeft',
   KEY_SHIFT_RIGHT = 'ShiftRight',
-  KEY_Z = 'KeyZ',
-  KEY_X = 'KeyX',
 }
 export enum TouchInput {
   JOYSTICK_LEFT = 'JoystickLeft',
@@ -42,8 +36,6 @@ export enum TouchInput {
   JOYSTICK_DOWN = 'JoystickDown',
   A = 'A',
   B = 'B',
-  C = 'C',
-  D = 'D',
 }
 
 export type PlayerInputs = Partial<Record<PlayerInput, boolean>>;
