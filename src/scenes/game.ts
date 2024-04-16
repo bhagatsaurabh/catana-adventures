@@ -2,6 +2,7 @@ import { Cameras, GameObjects, Scene, Tilemaps, Types } from 'phaser';
 import { Player } from '../models/player';
 import { InputManager } from '../helpers/input-manager';
 import { choose, clamp, rand } from '../utils';
+import { Chomper } from '../models/chomper';
 
 export class Game extends Scene {
   camera: Cameras.Scene2D.Camera;
@@ -86,6 +87,12 @@ export class Game extends Scene {
     };
     this.background.layer0.setOrigin(0, 0).setDepth(-10);
     this.background.layer1.setOrigin(0, 0).setDepth(-10);
+
+    this.createChompers();
+  }
+
+  private createChompers() {
+    new Chomper(this, { x: 900, y: this.map.heightInPixels - 120 });
   }
 
   update(_time: number, _delta: number) {

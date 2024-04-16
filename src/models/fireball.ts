@@ -11,7 +11,7 @@ export class Fireball {
   sprite: Physics.Matter.Sprite;
   body: MatterJS.BodyType;
   animations: Record<FireballAnimationType, Animations.Animation | false>;
-  config: FireballConfig = { speed: 5, power: 0 };
+  config: FireballConfig = { speed: 6.5, power: 0 };
   isDestroyed = false;
 
   constructor(
@@ -46,7 +46,10 @@ export class Fireball {
     this.sprite
       .setExistingBody(compoundBody)
       .setFixedRotation()
-      .setPosition(this.game.player.x + (this.sprite.flipX ? -25 : 25), this.game.player.y)
+      .setPosition(
+        this.game.player.x + (this.sprite.flipX ? -25 : 25),
+        this.game.player.y - this.game.player.controller.sprite.height / 1.5,
+      )
       .setIgnoreGravity(true);
   }
   private setAnimations() {

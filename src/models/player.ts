@@ -150,18 +150,6 @@ export class Player {
       frameRate: 60,
       repeat: 0,
     });
-    const comboAttack = this.controller.sprite.anims.create({
-      key: 'combo-attack',
-      frames: this.controller.sprite.anims.generateFrameNumbers('neko', { start: 78, end: 87 }),
-      frameRate: 15,
-      repeat: 0,
-    });
-    const comboKick = this.controller.sprite.anims.create({
-      key: 'combo-kick',
-      frames: this.controller.sprite.anims.generateFrameNumbers('neko', { start: 91, end: 102 }),
-      frameRate: 20,
-      repeat: 0,
-    });
     const crouchIn = this.controller.sprite.anims.create({
       key: 'crouch-in',
       frames: this.controller.sprite.anims.generateFrameNumbers('neko', { start: 104, end: 106 }),
@@ -183,8 +171,6 @@ export class Player {
       dead,
       'power-attack': powerAttack,
       'fast-attack': fastAttack,
-      'combo-attack': comboAttack,
-      'combo-kick': comboKick,
       'crouch-in': crouchIn,
       'crouch-out': crouchOut,
     };
@@ -236,13 +222,6 @@ export class Player {
     }
     if (input[PlayerInput.POWER_ATTACK]) {
       this.powerAttack(delta, time);
-    }
-
-    if (input[PlayerInput.COMBO_ATTACK] && !isMoving && !isJumping) {
-      this.comboAttack(delta, time);
-    }
-    if (input[PlayerInput.COMBO_KICK] && !isMoving && !isJumping) {
-      this.comboKick(delta, time);
     }
 
     this.prevInput = structuredClone(input);
@@ -377,28 +356,6 @@ export class Player {
       });
 
       this.controller.lastPowerAttackAt = time;
-    }
-  }
-  private comboAttack(_delta: number, _time: number) {
-    if (!this.controller.blocked.bottom) return;
-
-    if (!this.blockAnimation) {
-      this.blockAnimation = 'combo-attack';
-      this.controller.sprite.anims.play('combo-attack', true).once(Animations.Events.ANIMATION_COMPLETE, () => {
-        // this.blockAnimation === 'combo-attack' && new Fireball(this.game, 'high');
-        this.blockAnimation = null;
-      });
-    }
-  }
-  private comboKick(_delta: number, _time: number) {
-    if (!this.controller.blocked.bottom) return;
-
-    if (!this.blockAnimation) {
-      this.blockAnimation = 'combo-kick';
-      this.controller.sprite.anims.play('combo-kick', true).once(Animations.Events.ANIMATION_COMPLETE, () => {
-        // this.blockAnimation === 'combo-attack' && new Fireball(this.game, 'high');
-        this.blockAnimation = null;
-      });
     }
   }
 

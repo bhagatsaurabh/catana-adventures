@@ -21,6 +21,7 @@ export class Preloader extends Scene {
     this.load.image('tiles-landscape', 'spritesheets/tiles-landscape.png');
     this.load.spritesheet('neko', 'spritesheets/neko.png', { frameWidth: 32, frameHeight: 32 });
     this.load.spritesheet('fireball', 'spritesheets/fireball.png', { frameWidth: 32, frameHeight: 32 });
+    this.load.spritesheet('chomper', 'spritesheets/chomper.png', { frameWidth: 40, frameHeight: 40 });
     this.load.image('cloud1', 'sprites/cloud1.png');
     this.load.image('cloud2', 'sprites/cloud2.png');
     this.load.image('cloud3', 'sprites/cloud3.png');
