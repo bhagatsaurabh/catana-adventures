@@ -1,10 +1,32 @@
-import { Animations, Types } from 'phaser';
-import { PlayerAnimationType, PlayerInput, PlayerInputs } from '../types/types';
+import { Animations, GameObjects, Types } from 'phaser';
+import { PlayerInput, PlayerInputs } from '../types/types';
 import { Game } from '../scenes/game';
-import { clamp, denormalize, normalize } from '../utils';
+import { clamp, clampLow, denormalize, normalize } from '../utils';
 import { InputManager } from '../helpers/input-manager';
-import { PlayerConfig } from '../types/interfaces';
 import { Fireball } from './fireball';
+
+export interface PlayerConfig {
+  maxRunSpeed: number;
+  jumpPower: number;
+  speedModifier: number;
+  dragModifier: number;
+  fastAttackCooldown: number;
+  powerAttackCooldown: number;
+  hurtCooldown: number;
+  maxHealth: number;
+}
+export type PlayerAnimationType =
+  | 'idle'
+  | 'walk'
+  | 'jump-ready'
+  | 'jump'
+  | 'jump-land'
+  | 'hurt'
+  | 'dead'
+  | 'power-attack'
+  | 'fast-attack'
+  | 'crouch-in'
+  | 'crouch-out';
 
 export class Player {
   controller: {
@@ -24,10 +46,16 @@ export class Player {
     jumpPower: 7,
     fastAttackCooldown: 1200,
     powerAttackCooldown: 1500,
+    hurtCooldown: 1500,
+    maxHealth: 100,
   };
   dimensions: { w: number; h: number; sx: number; sy: number };
   animations: Partial<Record<PlayerAnimationType, Animations.Animation | false>>;
   speed: number = 0;
+  health = this.config.maxHealth;
+  ui: { healthBar: GameObjects.Graphics };
+  private isHurting = false;
+  private isDead = false;
   private standingBody: MatterJS.BodyType;
   private standingSensors: { left: MatterJS.BodyType; right: MatterJS.BodyType; bottom: MatterJS.BodyType };
 
@@ -43,6 +71,7 @@ export class Player {
     this.setPhysics();
     this.setAnimations();
     this.setHandlers();
+    this.setUI();
 
     this.controller.sprite.setScale(1.5, 1.5);
   }
@@ -132,6 +161,12 @@ export class Player {
       frameRate: 20,
       repeat: 0,
     });
+    const hurt = this.controller.sprite.anims.create({
+      key: 'hurt',
+      frames: this.controller.sprite.anims.generateFrameNumbers('neko', { start: 39, end: 41 }),
+      frameRate: 5,
+      repeat: 0,
+    });
     const dead = this.controller.sprite.anims.create({
       key: 'dead',
       frames: this.controller.sprite.anims.generateFrameNumbers('neko', { start: 39, end: 45 }),
@@ -168,6 +203,7 @@ export class Player {
       walk,
       jump,
       'jump-land': jumpLand,
+      hurt,
       dead,
       'power-attack': powerAttack,
       'fast-attack': fastAttack,
@@ -184,10 +220,27 @@ export class Player {
     );
     this.game.matter.world.on('afterupdate', () => this.afterUpdate());
   }
+  private setUI() {
+    const healthBar = this.game.add.graphics();
+    this.ui = { healthBar };
+  }
+
+  private updateUI() {
+    this.ui.healthBar.x = this.controller.sprite.x - 15;
+    this.ui.healthBar.y = this.controller.sprite.y - this.controller.sprite.height * 1.75;
+    this.ui.healthBar.clear();
+    this.ui.healthBar.lineStyle(1, 0xffffff);
+    this.ui.healthBar.strokeRect(0, 0, 30, 4);
+    const normHealth = normalize(this.health, 0, this.config.maxHealth);
+    this.ui.healthBar.fillStyle(normHealth >= 0.75 ? 0x00ff00 : normHealth >= 0.25 ? 0xffff00 : 0xff0000);
+    this.ui.healthBar.fillRect(1, 1, denormalize(normalize(this.health, 0, this.config.maxHealth), 0, 28), 2);
+  }
 
   prevInput: PlayerInputs = {};
   isDucking = false;
   applyInputs(delta: number, time: number, input: PlayerInputs) {
+    if (this.isDead || this.isHurting) return;
+
     let isMoving = false;
     if (input[PlayerInput.LEFT] || input[PlayerInput.RIGHT]) {
       isMoving = true;
@@ -229,6 +282,8 @@ export class Player {
 
   blockAnimation: string | null = null;
   private animate(input: PlayerInputs) {
+    if (this.isDead || this.isHurting) return;
+
     if (this.blockAnimation) {
       if (input[PlayerInput.RIGHT] || input[PlayerInput.LEFT] || input[PlayerInput.JUMP] || input[PlayerInput.CROUCH]) {
         this.blockAnimation = null;
@@ -358,10 +413,28 @@ export class Player {
       this.controller.lastPowerAttackAt = time;
     }
   }
+  private hurt(direction: number) {
+    this.isHurting = true;
+    this.controller.sprite.setVelocity(direction * 2, -3);
+    this.controller.sprite.flipX = direction === 1 ? true : false;
+    this.controller.sprite.anims
+      .play('hurt')
+      .once(Animations.Events.ANIMATION_COMPLETE, () => (this.isHurting = false));
+  }
+  private die() {
+    if (this.isDead) return;
+
+    this.isDead = true;
+    this.controller.sprite.anims.play('dead');
+  }
 
   private beforeUpdate(delta: number, time: number) {
+    if (this.y > this.game.map.heightInPixels) {
+      this.hit(Infinity, this.controller.sprite.flipX ? -1 : 1);
+    }
     this.applyInputs(delta, time, InputManager.input);
     this.animate(InputManager.input);
+    this.updateUI();
     // this.playSounds();
 
     this.controller.numTouchingSurfaces.left = 0;
@@ -396,5 +469,14 @@ export class Player {
     this.controller.blocked.right = this.controller.numTouchingSurfaces.right > 0 ? true : false;
     this.controller.blocked.left = this.controller.numTouchingSurfaces.left > 0 ? true : false;
     this.controller.blocked.bottom = this.controller.numTouchingSurfaces.bottom > 0 ? true : false;
+  }
+
+  hit(damage: number, direction: number) {
+    this.health = clampLow(this.health - damage, 0);
+    if (this.health === 0) {
+      this.die();
+    } else {
+      this.hurt(direction);
+    }
   }
 }

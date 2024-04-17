@@ -1,19 +1,38 @@
-import { Animations, Physics, Types } from 'phaser';
+import { Animations, GameObjects, Math as M, Physics, Types } from 'phaser';
 import { Game } from '../scenes/game';
+import { rand } from '../utils';
+import { Fireball } from './fireball';
 
-export type ChomperAnimationType = 'idle' | 'move' | 'bite' | 'die';
+export type ChomperAnimationType = 'idle' | 'move' | 'bite' | 'hurt' | 'die';
 export interface ChomperConfig {
   speed: number;
-  attackPower: number;
+  attackPower: () => number;
+  jumpPower: number;
+  jumpCooldown: number;
+  leapDistance: number;
+  chaseDistance: number;
+  attackDistance: number;
 }
+export type ChomperState = 'roam' | 'chase' | 'attack';
 
 export class Chomper {
-  config: ChomperConfig = { speed: 0.5, attackPower: 2 };
+  config: ChomperConfig = {
+    speed: 2,
+    attackPower: () => rand(6, 12),
+    jumpPower: 3,
+    jumpCooldown: 1000,
+    leapDistance: 37,
+    chaseDistance: 128,
+    attackDistance: 45,
+  };
   sprite: Physics.Matter.Sprite;
   body: MatterJS.BodyType;
   animations: Record<ChomperAnimationType, Animations.Animation | false>;
   isDead = false;
+  isAttacking = false;
+  isHurting = false;
   direction = 1;
+  lastPos: { x: number; y: number } = { x: 0, y: 0 };
   controller: {
     sensors: {
       left: MatterJS.BodyType;
@@ -33,12 +52,15 @@ export class Chomper {
       bottomLeft: boolean;
       bottomRight: boolean;
     };
+    lastJumpedAt: number;
   };
+  state: ChomperState = 'roam';
 
   constructor(
     public game: Game,
     public pos: Types.Math.Vector2Like,
   ) {
+    this.lastPos = { x: pos.x, y: pos.y };
     this.setSprite();
     this.setPhysics();
     this.setAnimations();
@@ -61,6 +83,7 @@ export class Chomper {
       },
       numOfTouchingSurfaces: { left: 0, right: 0, bottomLeft: 0, bottomRight: 0 },
       blocked: { left: false, right: false, bottomLeft: false, bottomRight: false },
+      lastJumpedAt: 0,
     };
 
     this.body = this.game.matter.bodies.circle(w / 2, w / 2, w / 2 - 3);
@@ -94,14 +117,23 @@ export class Chomper {
         start: 7,
         end: 11,
       }),
-      frameRate: 10,
-      repeat: -1,
+      frameRate: 12,
+      repeat: 0,
     });
     const bite = this.sprite.anims.create({
       key: 'bite',
       frames: this.sprite.anims.generateFrameNumbers('chomper', {
         start: 14,
         end: 19,
+      }),
+      frameRate: 17,
+      repeat: 0,
+    });
+    const hurt = this.sprite.anims.create({
+      key: 'hurt',
+      frames: this.sprite.anims.generateFrameNumbers('chomper', {
+        start: 21,
+        end: 23,
       }),
       frameRate: 24,
       repeat: 0,
@@ -120,6 +152,7 @@ export class Chomper {
       idle,
       move,
       bite,
+      hurt,
       die,
     };
   }
@@ -136,15 +169,17 @@ export class Chomper {
     );
   }
 
-  private beforeUpdate(_delta: number, _time: number) {
-    if (
-      (this.direction === 1 && !this.controller.blocked.bottomRight) ||
-      (this.direction === -1 && !this.controller.blocked.bottomLeft)
-    ) {
-      this.direction = this.direction === -1 ? 1 : -1;
-      this.sprite.flipX = !this.sprite.flipX;
+  private beforeUpdate(_delta: number, time: number) {
+    if (this.isHurting) return;
+
+    const distanceToPlayer = M.Distance.Between(this.sprite.x, this.sprite.y, this.game.player.x, this.game.player.y);
+    if (distanceToPlayer <= this.config.chaseDistance) {
+      this.state = 'chase';
+    } else {
+      this.state = 'roam';
     }
-    this.move();
+
+    this.applyInputs(time);
 
     this.controller.numOfTouchingSurfaces.left = 0;
     this.controller.numOfTouchingSurfaces.right = 0;
@@ -152,15 +187,26 @@ export class Chomper {
     this.controller.numOfTouchingSurfaces.bottomRight = 0;
   }
   private collisionActive(event: { pairs: Types.Physics.Matter.MatterCollisionPair[] }) {
+    if (this.isHurting) return;
+
     const left = this.controller.sensors.left;
     const right = this.controller.sensors.right;
     const bottomLeft = this.controller.sensors.bottomLeft;
     const bottomRight = this.controller.sensors.bottomRight;
+    const player = this.game.player.controller.sprite;
 
     for (let i = 0; i < event.pairs.length; i += 1) {
       const [bodyA, bodyB] = [event.pairs[i].bodyA, event.pairs[i].bodyB];
 
       if (bodyA === this.body || bodyB === this.body) {
+        if (bodyA.gameObject === player || bodyB.gameObject === player) {
+          this.attack();
+        } else if (bodyA.gameObject?.texture?.key === 'fireball' || bodyB.gameObject?.texture?.key === 'fireball') {
+          const fireballGO = (
+            bodyA.gameObject?.texture?.key === 'fireball' ? bodyA.gameObject : bodyB.gameObject
+          ) as GameObjects.GameObject;
+          this.hurt(this.game.objects.fireballs[fireballGO.name]);
+        }
         continue;
       } else if (bodyA === bottomLeft || bodyB === bottomLeft) {
         this.controller.numOfTouchingSurfaces.bottomLeft += 1;
@@ -180,8 +226,61 @@ export class Chomper {
     this.controller.blocked.bottomRight = this.controller.numOfTouchingSurfaces.bottomRight > 0 ? true : false;
   }
 
-  private move() {
-    this.sprite.anims.play('move', true);
-    this.sprite.setVelocityX(this.direction * 0.5);
+  private applyInputs(time: number) {
+    // If chasing or attacking, always face the player
+    if (this.state === 'chase' || this.state === 'attack') {
+      this.direction = Math.sign(this.game.player.x - this.sprite.x);
+      this.sprite.flipX = this.direction === -1;
+    }
+
+    // If roaming or chasing, move around
+    if (this.state === 'roam' || this.state === 'chase') {
+      if (this.controller.blocked.bottomRight || this.controller.blocked.bottomLeft) {
+        if (
+          !this.game.map.getTileAtWorldXY(
+            this.sprite.x + this.direction * this.config.leapDistance,
+            this.sprite.y + this.sprite.height,
+          )
+        ) {
+          this.direction = this.direction === -1 ? 1 : -1;
+          this.sprite.flipX = this.direction === -1;
+        }
+        if (time - this.controller.lastJumpedAt >= this.config.jumpCooldown) {
+          // console.log(Math.Distance.Between(this.sprite.x, this.sprite.y, this.lastPos.x, this.lastPos.y));
+          this.lastPos = { x: this.sprite.x, y: this.sprite.y };
+          this.move();
+          this.controller.lastJumpedAt = time;
+        }
+      }
+    }
   }
+
+  private move() {
+    this.sprite.anims.play('move').once(Animations.Events.ANIMATION_COMPLETE, () => {
+      if (this.state !== 'attack') {
+        this.sprite.anims.play('idle');
+      }
+    });
+    this.sprite.setVelocity(this.direction * this.config.speed, -this.config.jumpPower);
+  }
+  private attack() {
+    if (this.state === 'attack') return;
+
+    this.state = 'attack';
+    // const distanceToPlayer = M.Distance.Between(this.sprite.x, this.sprite.y, this.game.player.x, this.game.player.y);
+    this.sprite.anims.play('bite', true).once(Animations.Events.ANIMATION_COMPLETE, () => (this.state = 'roam'));
+    this.game.player.hit(this.config.attackPower(), this.direction);
+    /* if (distanceToPlayer <= this.config.hitDistance) {
+    } */
+  }
+  private hurt(fireball?: Fireball) {
+    if (!fireball) return;
+
+    this.direction = fireball.sprite.flipX ? -1 : 1;
+    this.isHurting = true;
+    this.sprite.setVelocity(this.direction * 2, -3);
+    this.sprite.flipX = this.direction === 1 ? true : false;
+    this.sprite.anims.play('hurt').once(Animations.Events.ANIMATION_COMPLETE, () => (this.isHurting = false));
+  }
+  // private die() {}
 }
