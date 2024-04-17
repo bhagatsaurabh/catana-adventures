@@ -1,15 +1,3 @@
-export type PlayerAnimationType =
-  | 'idle'
-  | 'walk'
-  | 'jump-ready'
-  | 'jump'
-  | 'jump-land'
-  | 'dead'
-  | 'power-attack'
-  | 'fast-attack'
-  | 'crouch-in'
-  | 'crouch-out';
-
 export enum PlayerInput {
   LEFT,
   RIGHT,

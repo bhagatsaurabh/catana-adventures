@@ -1,5 +1,6 @@
 import { Animations, Physics, Types } from 'phaser';
 import { Game } from '../scenes/game';
+import { luid } from '../utils';
 
 export type FireballAnimationType = 'move' | 'explode';
 export interface FireballConfig {
@@ -8,6 +9,7 @@ export interface FireballConfig {
 }
 
 export class Fireball {
+  id: string;
   sprite: Physics.Matter.Sprite;
   body: MatterJS.BodyType;
   animations: Record<FireballAnimationType, Animations.Animation | false>;
@@ -18,6 +20,7 @@ export class Fireball {
     public game: Game,
     public type: 'low' | 'high',
   ) {
+    this.id = luid();
     this.config.power = type === 'low' ? 5 : 10;
     this.setSprite();
     this.setPhysics();
@@ -25,10 +28,13 @@ export class Fireball {
     this.setHandlers();
 
     this.sprite.anims.play('move', true);
+
+    this.game.objects.fireballs[this.id] = this;
   }
 
   private setSprite() {
     this.sprite = this.game.matter.add.sprite(0, 0, 'fireball');
+    this.sprite.name = this.id;
 
     const w = this.sprite.width;
     const h = this.sprite.height;
@@ -95,14 +101,22 @@ export class Fireball {
         const otherBody = bodyA === fireballBody ? bodyB : bodyA;
 
         if (otherBody.gameObject?.texture?.key !== 'neko' && !this.isDestroyed) {
-          this.sprite.setVelocityX(0);
-          this.sprite.anims
-            .play('explode', true)
-            .once(Animations.Events.ANIMATION_COMPLETE, () => this.sprite.destroy());
-          return;
+          this.explode();
         }
       }
       continue;
     }
+  }
+
+  private explode() {
+    this.isDestroyed = true;
+    this.sprite.setVelocityX(0);
+    this.sprite.anims.play('explode', true).once(Animations.Events.ANIMATION_COMPLETE, () => this.destroy());
+    return;
+  }
+
+  destroy() {
+    delete this.game.objects.fireballs[this.id];
+    this.sprite.destroy();
   }
 }

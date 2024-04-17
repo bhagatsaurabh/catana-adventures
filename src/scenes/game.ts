@@ -3,6 +3,7 @@ import { Player } from '../models/player';
 import { InputManager } from '../helpers/input-manager';
 import { choose, clamp, rand } from '../utils';
 import { Chomper } from '../models/chomper';
+import { Fireball } from '../models/fireball';
 
 export class Game extends Scene {
   camera: Cameras.Scene2D.Camera;
@@ -13,6 +14,7 @@ export class Game extends Scene {
   handles: { fps: number } = { fps: -1 };
   clouds: { gameObject: GameObjects.Image; direction: -1 | 1; speed: number }[] = [];
   background: { layer0: GameObjects.TileSprite; layer1: GameObjects.TileSprite };
+  objects: { fireballs: Partial<Record<string, Fireball>> } = { fireballs: {} };
 
   constructor() {
     super('game');
@@ -98,14 +100,6 @@ export class Game extends Scene {
   update(_time: number, _delta: number) {
     const sprite = this.player.controller.sprite;
     if (!sprite) {
-      return;
-    }
-
-    if (sprite.y > this.map.heightInPixels) {
-      console.log('dead');
-      sprite.destroy();
-      // this.player.controller.sprite = null;
-      // this.restart();
       return;
     }
 
