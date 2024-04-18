@@ -4,6 +4,8 @@ import { InputManager } from '../helpers/input-manager';
 import { choose, clamp, rand } from '../utils';
 import { Chomper } from '../models/chomper';
 import { Fireball } from '../models/fireball';
+import { Belch } from '../models/belch';
+import { DemonFlower } from '../models/demon-flower';
 
 export class Game extends Scene {
   camera: Cameras.Scene2D.Camera;
@@ -14,7 +16,10 @@ export class Game extends Scene {
   handles: { fps: number } = { fps: -1 };
   clouds: { gameObject: GameObjects.Image; direction: -1 | 1; speed: number }[] = [];
   background: { layer0: GameObjects.TileSprite; layer1: GameObjects.TileSprite };
-  objects: { fireballs: Partial<Record<string, Fireball>> } = { fireballs: {} };
+  objects: { fireballs: Partial<Record<string, Fireball>>; belches: Partial<Record<string, Belch>> } = {
+    fireballs: {},
+    belches: {},
+  };
 
   constructor() {
     super('game');
@@ -91,10 +96,14 @@ export class Game extends Scene {
     this.background.layer1.setOrigin(0, 0).setDepth(-10);
 
     this.createChompers();
+    this.createDemonFlowers();
   }
 
   private createChompers() {
     new Chomper(this, { x: 900, y: this.map.heightInPixels - 120 });
+  }
+  private createDemonFlowers() {
+    new DemonFlower(this, { x: 320, y: this.map.heightInPixels - 96 - 16 });
   }
 
   update(_time: number, _delta: number) {
