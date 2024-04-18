@@ -1,6 +1,6 @@
 import { Animations, GameObjects, Math as M, Physics, Types } from 'phaser';
 import { Game } from '../scenes/game';
-import { rand } from '../utils';
+import { clampLow, denormalize, normalize, rand } from '../utils';
 import { Fireball } from './fireball';
 
 export type ChomperAnimationType = 'idle' | 'move' | 'bite' | 'hurt' | 'die';
@@ -12,6 +12,7 @@ export interface ChomperConfig {
   leapDistance: number;
   chaseDistance: number;
   attackDistance: number;
+  maxHealth: number;
 }
 export type ChomperState = 'roam' | 'chase' | 'attack';
 
@@ -24,12 +25,13 @@ export class Chomper {
     leapDistance: 37,
     chaseDistance: 128,
     attackDistance: 45,
+    maxHealth: 20,
   };
   sprite: Physics.Matter.Sprite;
   body: MatterJS.BodyType;
   animations: Record<ChomperAnimationType, Animations.Animation | false>;
   isDead = false;
-  isAttacking = false;
+  isDestroyed = false;
   isHurting = false;
   direction = 1;
   lastPos: { x: number; y: number } = { x: 0, y: 0 };
@@ -54,7 +56,9 @@ export class Chomper {
     };
     lastJumpedAt: number;
   };
+  health = this.config.maxHealth;
   state: ChomperState = 'roam';
+  ui: { healthBar: GameObjects.Graphics };
 
   constructor(
     public game: Game,
@@ -65,6 +69,7 @@ export class Chomper {
     this.setPhysics();
     this.setAnimations();
     this.setHandlers();
+    this.setUI();
 
     this.sprite.anims.play('idle');
   }
@@ -135,16 +140,13 @@ export class Chomper {
         start: 21,
         end: 23,
       }),
-      frameRate: 24,
+      frameRate: 20,
       repeat: 0,
     });
     const die = this.sprite.anims.create({
       key: 'die',
-      frames: this.sprite.anims.generateFrameNumbers('chomper', {
-        start: 21,
-        end: 27,
-      }),
-      frameRate: 24,
+      frames: this.sprite.anims.generateFrameNumbers('chomper', { frames: [21, 22, 23, 24, 25, 26, 27, 20] }),
+      frameRate: 15,
       repeat: 0,
     });
 
@@ -168,9 +170,27 @@ export class Chomper {
       this.afterUpdate(event.delta, event.timestamp),
     );
   }
+  private setUI() {
+    const healthBar = this.game.add.graphics();
+    this.ui = { healthBar };
+  }
+  private updateUI() {
+    if (this.isDestroyed) return;
+
+    this.ui.healthBar.x = this.sprite.x - 15;
+    this.ui.healthBar.y = this.sprite.y - this.sprite.height / 2;
+    this.ui.healthBar.clear();
+    this.ui.healthBar.lineStyle(1, 0xffffff);
+    this.ui.healthBar.strokeRect(0, 0, 30, 4);
+    const normHealth = normalize(this.health, 0, this.config.maxHealth);
+    this.ui.healthBar.fillStyle(normHealth >= 0.75 ? 0x00ff00 : normHealth >= 0.25 ? 0xffff00 : 0xff0000);
+    this.ui.healthBar.fillRect(1, 1, denormalize(normalize(this.health, 0, this.config.maxHealth), 0, 28), 2);
+  }
 
   private beforeUpdate(_delta: number, time: number) {
-    if (this.isHurting) return;
+    this.updateUI();
+
+    if (this.isHurting || this.isDead) return;
 
     const distanceToPlayer = M.Distance.Between(this.sprite.x, this.sprite.y, this.game.player.x, this.game.player.y);
     if (distanceToPlayer <= this.config.chaseDistance) {
@@ -187,7 +207,7 @@ export class Chomper {
     this.controller.numOfTouchingSurfaces.bottomRight = 0;
   }
   private collisionActive(event: { pairs: Types.Physics.Matter.MatterCollisionPair[] }) {
-    if (this.isHurting) return;
+    if (this.isHurting || this.isDead) return;
 
     const left = this.controller.sensors.left;
     const right = this.controller.sensors.right;
@@ -205,7 +225,7 @@ export class Chomper {
           const fireballGO = (
             bodyA.gameObject?.texture?.key === 'fireball' ? bodyA.gameObject : bodyB.gameObject
           ) as GameObjects.GameObject;
-          this.hurt(this.game.objects.fireballs[fireballGO.name]);
+          this.hit(this.game.objects.fireballs[fireballGO.name]);
         }
         continue;
       } else if (bodyA === bottomLeft || bodyB === bottomLeft) {
@@ -220,6 +240,8 @@ export class Chomper {
     }
   }
   private afterUpdate(_delta: number, _time: number) {
+    if (this.isHurting || this.isDead) return;
+
     this.controller.blocked.right = this.controller.numOfTouchingSurfaces.right > 0 ? true : false;
     this.controller.blocked.left = this.controller.numOfTouchingSurfaces.left > 0 ? true : false;
     this.controller.blocked.bottomLeft = this.controller.numOfTouchingSurfaces.bottomLeft > 0 ? true : false;
@@ -267,20 +289,38 @@ export class Chomper {
     if (this.state === 'attack') return;
 
     this.state = 'attack';
-    // const distanceToPlayer = M.Distance.Between(this.sprite.x, this.sprite.y, this.game.player.x, this.game.player.y);
+
     this.sprite.anims.play('bite', true).once(Animations.Events.ANIMATION_COMPLETE, () => (this.state = 'roam'));
     this.game.player.hit(this.config.attackPower(), this.direction);
-    /* if (distanceToPlayer <= this.config.hitDistance) {
-    } */
   }
-  private hurt(fireball?: Fireball) {
+  hit(fireball?: Fireball) {
     if (!fireball) return;
 
-    this.direction = fireball.sprite.flipX ? -1 : 1;
+    this.direction = fireball.sprite.flipX ? 1 : -1;
+    this.sprite.flipX = this.direction === -1;
+
+    this.health = clampLow(this.health - fireball.config.power, 0);
+    if (this.health === 0) {
+      this.die();
+    } else {
+      this.hurt();
+    }
+  }
+  private hurt() {
     this.isHurting = true;
-    this.sprite.setVelocity(this.direction * 2, -3);
-    this.sprite.flipX = this.direction === 1 ? true : false;
+    this.sprite.setVelocity(this.direction * -1 * 2, -3);
     this.sprite.anims.play('hurt').once(Animations.Events.ANIMATION_COMPLETE, () => (this.isHurting = false));
   }
-  // private die() {}
+  private die() {
+    if (this.isDead) return;
+
+    (this.sprite.body as MatterJS.BodyType).isSensor = true;
+    this.isDead = true;
+    this.sprite.anims.play('die').once(Animations.Events.ANIMATION_COMPLETE, () => this.destroy());
+  }
+  destroy() {
+    this.isDestroyed = true;
+    this.sprite.destroy();
+    this.ui.healthBar.destroy();
+  }
 }

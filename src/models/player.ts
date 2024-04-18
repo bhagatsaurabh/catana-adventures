@@ -442,7 +442,6 @@ export class Player {
     this.controller.numTouchingSurfaces.bottom = 0;
   }
   private collisionActive(event: { pairs: Types.Physics.Matter.MatterCollisionPair[] }) {
-    const playerBody = this.controller.sprite.body;
     const left = this.controller.sensors.left;
     const right = this.controller.sensors.right;
     const bottom = this.controller.sensors.bottom;
@@ -450,7 +449,19 @@ export class Player {
     for (let i = 0; i < event.pairs.length; i += 1) {
       const [bodyA, bodyB] = [event.pairs[i].bodyA, event.pairs[i].bodyB];
 
-      if (bodyA === playerBody || bodyB === playerBody) {
+      if (bodyA.gameObject?.texture?.key === 'neko' || bodyA.gameObject?.texture?.key === 'neko') {
+        if (bodyA.gameObject?.texture?.key === 'belch' || bodyB.gameObject?.texture?.key === 'belch') {
+          const belchGO = (
+            bodyA.gameObject?.texture?.key === 'belch' ? bodyA.gameObject : bodyB.gameObject
+          ) as GameObjects.GameObject;
+          const belch = this.game.objects.belches[belchGO.name];
+          if (!belch!.isDestroyed) {
+            this.hit(
+              this.game.objects.belches[belchGO.name]!.config.power,
+              this.game.objects.belches[belchGO.name]!.sprite.flipX ? -1 : 1,
+            );
+          }
+        }
         continue;
       } else if (bodyA === bottom || bodyB === bottom) {
         this.controller.numTouchingSurfaces.bottom += 1;
