@@ -16,6 +16,13 @@ export class Fireball {
   config: FireballConfig = { speed: 6.5, power: 0 };
   isDestroyed = false;
 
+  get direction(): number {
+    return this.sprite.flipX ? -1 : 1;
+  }
+  set direction(value: number) {
+    this.sprite.flipX = value === -1;
+  }
+
   constructor(
     public game: Game,
     public type: 'low' | 'high',
@@ -48,12 +55,12 @@ export class Fireball {
   private setPhysics() {
     const compoundBody = this.game.matter.body.create({ parts: [this.body], frictionAir: 0 });
 
-    this.sprite.flipX = this.game.player.controller.sprite.flipX;
+    this.direction = this.game.player.direction;
     this.sprite
       .setExistingBody(compoundBody)
       .setFixedRotation()
       .setPosition(
-        this.game.player.x + (this.sprite.flipX ? -25 : 25),
+        this.game.player.x + this.direction * 25,
         this.game.player.y - this.game.player.controller.sprite.height / 1.5,
       )
       .setIgnoreGravity(true);
@@ -84,7 +91,7 @@ export class Fireball {
     };
   }
   private setHandlers() {
-    this.sprite.setVelocityX(this.sprite.flipX ? -this.config.speed : this.config.speed);
+    this.sprite.setVelocityX(this.direction * this.config.speed);
     this.game.matter.world.on(
       Physics.Matter.Events.COLLISION_ACTIVE,
       (event: { pairs: Types.Physics.Matter.MatterCollisionPair[] }) => this.onCollide(event),
