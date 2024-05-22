@@ -65,6 +65,12 @@ export class Player {
   get y(): number {
     return this.controller.sprite.y;
   }
+  get direction(): number {
+    return this.controller.sprite.flipX ? -1 : 1;
+  }
+  set direction(value: number) {
+    this.controller.sprite.flipX = value === -1;
+  }
 
   constructor(public game: Game) {
     this.setController();
@@ -291,11 +297,8 @@ export class Player {
       return;
     }
 
-    if (
-      (this.controller.sprite.flipX && input[PlayerInput.RIGHT]) ||
-      (!this.controller.sprite.flipX && input[PlayerInput.LEFT])
-    ) {
-      this.controller.sprite.flipX = !this.controller.sprite.flipX;
+    if ((this.direction === -1 && input[PlayerInput.RIGHT]) || (this.direction !== -1 && input[PlayerInput.LEFT])) {
+      this.direction = this.direction * -1;
     }
 
     // On-ground or in-air
@@ -416,7 +419,7 @@ export class Player {
   private hurt(direction: number) {
     this.isHurting = true;
     this.controller.sprite.setVelocity(direction * 2, -3);
-    this.controller.sprite.flipX = direction === 1 ? true : false;
+    this.direction = direction * -1;
     this.controller.sprite.anims
       .play('hurt')
       .once(Animations.Events.ANIMATION_COMPLETE, () => (this.isHurting = false));
@@ -430,7 +433,7 @@ export class Player {
 
   private beforeUpdate(delta: number, time: number) {
     if (this.y > this.game.map.heightInPixels) {
-      this.hit(Infinity, this.controller.sprite.flipX ? -1 : 1);
+      this.hit(Infinity, this.direction);
     }
     this.applyInputs(delta, time, InputManager.input);
     this.animate(InputManager.input);

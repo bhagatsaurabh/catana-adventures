@@ -18,7 +18,7 @@ export class Belch {
 
   constructor(
     public game: Game,
-    public direction: -1 | 1,
+    public direction: number,
     pos: Types.Math.Vector2Like,
     power: number,
   ) {
