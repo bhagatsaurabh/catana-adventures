@@ -1,146 +1,102 @@
-import { Animations, GameObjects, Geom, Math as M, Physics, Types } from 'phaser';
+import { Animations, GameObjects, Math as M, Physics, Types } from 'phaser';
 import { Game } from '../scenes/game';
-import { denormalize, normalize, rand, randRadial } from '../utils';
+import { clampLow, denormalize, normalize, rand } from '../utils';
 import { Fireball } from './fireball';
 
-export type FlyFlyAnimationType = 'idle' | 'bite' | 'die';
-export interface FlyFlyConfig {
+export type SkeletonAnimationType = 'idle' | 'move' | 'bite' | 'hurt' | 'die';
+export interface SkeletonConfig {
   speed: number;
   attackPower: () => number;
+  jumpPower: number;
+  jumpCooldown: number;
+  leapDistance: number;
   chaseDistance: number;
   attackDistance: number;
   maxHealth: number;
-  territoryRadius: number;
-  waypointThreshold: number;
 }
-export type FlyFlyState = 'roam' | 'chase' | 'attack';
+export type SkeletonState = 'roam' | 'chase' | 'attack';
 
-export class FlyFly {
-  config: FlyFlyConfig = {
-    speed: 1.5,
+export class Skeleton {
+  config: SkeletonConfig = {
+    speed: 2,
     attackPower: () => rand(6, 12),
-    chaseDistance: 175,
+    jumpPower: 3,
+    jumpCooldown: 1000,
+    leapDistance: 37,
+    chaseDistance: 128,
     attackDistance: 45,
     maxHealth: 20,
-    territoryRadius: 300,
-    waypointThreshold: 3,
   };
   sprite: Physics.Matter.Sprite;
   body: MatterJS.BodyType;
-  animations: Record<FlyFlyAnimationType, Animations.Animation | false>;
+  animations: Record<SkeletonAnimationType, Animations.Animation | false>;
   isDead = false;
   isDestroyed = false;
+  isHurting = false;
+  lastPos: { x: number; y: number } = { x: 0, y: 0 };
   controller: {
     sensors: {
-      topLeft: MatterJS.BodyType;
-      top: MatterJS.BodyType;
-      topRight: MatterJS.BodyType;
       left: MatterJS.BodyType;
       right: MatterJS.BodyType;
       bottomLeft: MatterJS.BodyType;
       bottomRight: MatterJS.BodyType;
-      bottom: MatterJS.BodyType;
     };
     numOfTouchingSurfaces: {
-      topLeft: number;
-      top: number;
-      topRight: number;
       left: number;
       right: number;
       bottomLeft: number;
       bottomRight: number;
-      bottom: number;
     };
     blocked: {
-      topLeft: boolean;
-      top: boolean;
-      topRight: boolean;
       left: boolean;
       right: boolean;
       bottomLeft: boolean;
       bottomRight: boolean;
-      bottom: boolean;
     };
+    lastJumpedAt: number;
   };
   health = this.config.maxHealth;
-  state: FlyFlyState = 'roam';
+  state: SkeletonState = 'roam';
   ui: { healthBar: GameObjects.Graphics };
-  ray: Raycaster.Ray;
-  intersections: Geom.Point[];
-  origin: Types.Math.Vector2Like;
-  nextWaypoint: Types.Math.Vector2Like = { x: 0, y: 0 };
   get direction(): number {
     return this.sprite.flipX ? -1 : 1;
   }
   set direction(value: number) {
     this.sprite.flipX = value === -1;
   }
-  get x(): number {
-    return this.sprite.x;
-  }
-  get y(): number {
-    return this.sprite.y;
-  }
 
   constructor(
     public game: Game,
     public pos: Types.Math.Vector2Like,
   ) {
-    this.origin = { x: pos.x, y: pos.y };
-    this.nextWaypoint = { x: pos.x, y: pos.y };
+    this.lastPos = { x: pos.x, y: pos.y };
     this.setSprite();
     this.setPhysics();
     this.setAnimations();
     this.setHandlers();
     this.setUI();
-    this.setVision();
 
     this.sprite.anims.play('idle');
   }
 
   private setSprite() {
-    this.sprite = this.game.matter.add.sprite(0, 0, 'flyfly');
+    this.sprite = this.game.matter.add.sprite(0, 0, 'skeleton');
   }
   private setPhysics() {
     const w = this.sprite.width;
     this.controller = {
       sensors: {
-        left: this.game.matter.bodies.rectangle(0, w / 2, 5, 5, { isSensor: true }),
-        right: this.game.matter.bodies.rectangle(w, w / 2, 5, 5, { isSensor: true }),
-        top: this.game.matter.bodies.rectangle(w / 2, 0, 5, 5, { isSensor: true }),
-        bottom: this.game.matter.bodies.rectangle(w / 2, w, 5, 5, { isSensor: true }),
-        bottomLeft: this.game.matter.bodies.rectangle(0, w, 5, 5, { isSensor: true }),
-        bottomRight: this.game.matter.bodies.rectangle(w, w, 5, 5, { isSensor: true }),
-        topLeft: this.game.matter.bodies.rectangle(0, 0, 5, 5, { isSensor: true }),
-        topRight: this.game.matter.bodies.rectangle(w, 0, 5, 5, { isSensor: true }),
+        left: this.game.matter.bodies.rectangle(0, w / 2, 5, 10, { isSensor: true }),
+        right: this.game.matter.bodies.rectangle(w, w / 2, 5, 10, { isSensor: true }),
+        bottomLeft: this.game.matter.bodies.rectangle(0, w - 2.5, 10, 5, { isSensor: true }),
+        bottomRight: this.game.matter.bodies.rectangle(w, w - 2.5, 10, 5, { isSensor: true }),
       },
-      numOfTouchingSurfaces: {
-        left: 0,
-        right: 0,
-        bottomLeft: 0,
-        bottomRight: 0,
-        top: 0,
-        bottom: 0,
-        topLeft: 0,
-        topRight: 0,
-      },
-      blocked: {
-        left: false,
-        right: false,
-        bottomLeft: false,
-        bottomRight: false,
-        top: false,
-        bottom: false,
-        topLeft: false,
-        topRight: false,
-      },
+      numOfTouchingSurfaces: { left: 0, right: 0, bottomLeft: 0, bottomRight: 0 },
+      blocked: { left: false, right: false, bottomLeft: false, bottomRight: false },
+      lastJumpedAt: 0,
     };
 
-    this.body = this.game.matter.bodies.circle(w / 2, w / 2, w / 3, {
-      isSensor: true,
-      restitution: 0.05,
-      friction: 0,
-    });
+    this.body = this.game.matter.bodies.circle(w / 2, w / 2, w / 2 - 3);
 
     const compoundBody = this.game.matter.body.create({
       parts: [
@@ -149,12 +105,8 @@ export class FlyFly {
         this.controller.sensors.right,
         this.controller.sensors.bottomLeft,
         this.controller.sensors.bottomRight,
-        this.controller.sensors.top,
-        this.controller.sensors.bottom,
-        this.controller.sensors.topLeft,
-        this.controller.sensors.topRight,
       ],
-      ignoreGravity: true,
+      restitution: 0.05,
     });
 
     this.sprite.setExistingBody(compoundBody).setPosition(this.pos.x, this.pos.y).setFixedRotation();
@@ -162,26 +114,52 @@ export class FlyFly {
   private setAnimations() {
     const idle = this.sprite.anims.create({
       key: 'idle',
-      frames: this.sprite.anims.generateFrameNumbers('flyfly', { start: 0, end: 4 }),
+      frames: this.sprite.anims.generateFrameNumbers('skeleton', {
+        start: 0,
+        end: 3,
+      }),
       frameRate: 16,
       repeat: -1,
     });
+    const move = this.sprite.anims.create({
+      key: 'move',
+      frames: this.sprite.anims.generateFrameNumbers('skeleton', {
+        start: 7,
+        end: 11,
+      }),
+      frameRate: 12,
+      repeat: 0,
+    });
     const bite = this.sprite.anims.create({
       key: 'bite',
-      frames: this.sprite.anims.generateFrameNumbers('flyfly', { start: 8, end: 12 }),
+      frames: this.sprite.anims.generateFrameNumbers('skeleton', {
+        start: 14,
+        end: 19,
+      }),
       frameRate: 17,
+      repeat: 0,
+    });
+    const hurt = this.sprite.anims.create({
+      key: 'hurt',
+      frames: this.sprite.anims.generateFrameNumbers('skeleton', {
+        start: 21,
+        end: 23,
+      }),
+      frameRate: 20,
       repeat: 0,
     });
     const die = this.sprite.anims.create({
       key: 'die',
-      frames: this.sprite.anims.generateFrameNumbers('flyfly', { start: 16, end: 23 }),
+      frames: this.sprite.anims.generateFrameNumbers('skeleton', { frames: [21, 22, 23, 24, 25, 26, 27, 20] }),
       frameRate: 15,
       repeat: 0,
     });
 
     this.animations = {
       idle,
+      move,
       bite,
+      hurt,
       die,
     };
   }
@@ -213,34 +191,14 @@ export class FlyFly {
     this.ui.healthBar.fillStyle(normHealth >= 0.75 ? 0x00ff00 : normHealth >= 0.25 ? 0xffff00 : 0xff0000);
     this.ui.healthBar.fillRect(1, 1, denormalize(normalize(this.health, 0, this.config.maxHealth), 0, 28), 2);
   }
-  private setVision() {
-    this.ray = this.game.raycaster.createRay({
-      origin: {
-        x: 0,
-        y: 0,
-      },
-      autoSlice: true,
-      range: this.config.chaseDistance,
-      collisionRange: this.config.chaseDistance,
-      detectionRange: this.config.chaseDistance,
-    });
-    this.game.raycaster.mapGameObjects([this.game.player.controller.sprite], true);
-    this.game.raycaster.mapGameObjects(this.game.map.getLayer('Landscape')!.tilemapLayer, false, {
-      collisionTiles: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 16, 17, 18, 19],
-    });
-  }
-  private updateVision() {
-    this.ray.setOrigin(this.x, this.y);
-    this.intersections = this.ray.castCircle();
-  }
 
   private beforeUpdate(_delta: number, time: number) {
-    if (this.isDead) return;
-
-    this.updateVision();
     this.updateUI();
 
-    if (this.intersections.find((point: any) => point?.object?.texture?.key === 'neko')) {
+    if (this.isHurting || this.isDead) return;
+
+    const distanceToPlayer = M.Distance.Between(this.sprite.x, this.sprite.y, this.game.player.x, this.game.player.y);
+    if (distanceToPlayer <= this.config.chaseDistance) {
       this.state = 'chase';
     } else {
       this.state = 'roam';
@@ -252,22 +210,14 @@ export class FlyFly {
     this.controller.numOfTouchingSurfaces.right = 0;
     this.controller.numOfTouchingSurfaces.bottomLeft = 0;
     this.controller.numOfTouchingSurfaces.bottomRight = 0;
-    this.controller.numOfTouchingSurfaces.top = 0;
-    this.controller.numOfTouchingSurfaces.bottom = 0;
-    this.controller.numOfTouchingSurfaces.topLeft = 0;
-    this.controller.numOfTouchingSurfaces.topRight = 0;
   }
   private collisionActive(event: { pairs: Types.Physics.Matter.MatterCollisionPair[] }) {
-    if (this.isDead) return;
+    if (this.isHurting || this.isDead) return;
 
     const left = this.controller.sensors.left;
     const right = this.controller.sensors.right;
     const bottomLeft = this.controller.sensors.bottomLeft;
     const bottomRight = this.controller.sensors.bottomRight;
-    const top = this.controller.sensors.top;
-    const bottom = this.controller.sensors.bottom;
-    const topLeft = this.controller.sensors.topLeft;
-    const topRight = this.controller.sensors.topRight;
     const player = this.game.player.controller.sprite;
 
     for (let i = 0; i < event.pairs.length; i += 1) {
@@ -291,31 +241,19 @@ export class FlyFly {
         this.controller.numOfTouchingSurfaces.left += 1;
       } else if ((bodyA === right && bodyB.isStatic) || (bodyB === right && bodyA.isStatic)) {
         this.controller.numOfTouchingSurfaces.right += 1;
-      } else if (bodyA === top || bodyB === top) {
-        this.controller.numOfTouchingSurfaces.top += 1;
-      } else if (bodyA === bottom || bodyB === bottom) {
-        this.controller.numOfTouchingSurfaces.bottom += 1;
-      } else if ((bodyA === topLeft && bodyB.isStatic) || (bodyB === topLeft && bodyA.isStatic)) {
-        this.controller.numOfTouchingSurfaces.topLeft += 1;
-      } else if ((bodyA === topRight && bodyB.isStatic) || (bodyB === topRight && bodyA.isStatic)) {
-        this.controller.numOfTouchingSurfaces.topRight += 1;
       }
     }
   }
   private afterUpdate(_delta: number, _time: number) {
-    if (this.isDead) return;
+    if (this.isHurting || this.isDead) return;
 
     this.controller.blocked.right = this.controller.numOfTouchingSurfaces.right > 0 ? true : false;
     this.controller.blocked.left = this.controller.numOfTouchingSurfaces.left > 0 ? true : false;
     this.controller.blocked.bottomLeft = this.controller.numOfTouchingSurfaces.bottomLeft > 0 ? true : false;
     this.controller.blocked.bottomRight = this.controller.numOfTouchingSurfaces.bottomRight > 0 ? true : false;
-    this.controller.blocked.top = this.controller.numOfTouchingSurfaces.top > 0 ? true : false;
-    this.controller.blocked.bottom = this.controller.numOfTouchingSurfaces.bottom > 0 ? true : false;
-    this.controller.blocked.topLeft = this.controller.numOfTouchingSurfaces.topLeft > 0 ? true : false;
-    this.controller.blocked.topRight = this.controller.numOfTouchingSurfaces.topRight > 0 ? true : false;
   }
 
-  private applyInputs(_time: number) {
+  private applyInputs(time: number) {
     // If chasing or attacking, always face the player
     if (this.state === 'chase' || this.state === 'attack') {
       this.direction = Math.sign(this.game.player.x - this.sprite.x);
@@ -323,27 +261,31 @@ export class FlyFly {
 
     // If roaming or chasing, move around
     if (this.state === 'roam' || this.state === 'chase') {
-      this.move();
+      if (this.controller.blocked.bottomRight || this.controller.blocked.bottomLeft) {
+        if (
+          !this.game.map.getTileAtWorldXY(
+            this.sprite.x + this.direction * this.config.leapDistance,
+            this.sprite.y + this.sprite.height,
+          )
+        ) {
+          this.direction = this.direction * -1;
+        }
+        if (time - this.controller.lastJumpedAt >= this.config.jumpCooldown) {
+          this.lastPos = { x: this.sprite.x, y: this.sprite.y };
+          this.move();
+          this.controller.lastJumpedAt = time;
+        }
+      }
     }
   }
 
   private move() {
-    if (this.isDead) return;
-
-    const waypoint = this.state === 'chase' ? { x: this.game.player.x, y: this.game.player.y } : this.nextWaypoint;
-    const distanceToWaypoint = M.Distance.Between(this.x, this.y, waypoint.x, waypoint.y);
-    if (distanceToWaypoint <= this.config.waypointThreshold && this.state !== 'chase') {
-      this.nextWaypoint = randRadial(this.origin.x, this.origin.y, this.config.territoryRadius);
-    } else {
-      this.direction = Math.sign(waypoint.x - this.x);
-    }
-    this.sprite.anims.play('idle', true).once(Animations.Events.ANIMATION_COMPLETE, () => {
-      if (this.state !== 'attack') this.sprite.anims.play('idle', true);
+    this.sprite.anims.play('move').once(Animations.Events.ANIMATION_COMPLETE, () => {
+      if (this.state !== 'attack') {
+        this.sprite.anims.play('idle');
+      }
     });
-    const a = new M.Vector2(waypoint);
-    const b = new M.Vector2({ x: this.x, y: this.y });
-    const velocityVec = a.subtract(b).normalize().scale(this.config.speed);
-    this.sprite.setVelocity(velocityVec.x, velocityVec.y);
+    this.sprite.setVelocity(this.direction * this.config.speed, -this.config.jumpPower);
   }
   private attack() {
     if (this.state === 'attack') return;
@@ -358,8 +300,17 @@ export class FlyFly {
 
     this.direction = fireball.direction * -1;
 
-    this.health = 0;
-    this.die();
+    this.health = clampLow(this.health - fireball.config.power, 0);
+    if (this.health === 0) {
+      this.die();
+    } else {
+      this.hurt();
+    }
+  }
+  private hurt() {
+    this.isHurting = true;
+    this.sprite.setVelocity(this.direction * -1 * 2, -3);
+    this.sprite.anims.play('hurt').once(Animations.Events.ANIMATION_COMPLETE, () => (this.isHurting = false));
   }
   private die() {
     if (this.isDead) return;

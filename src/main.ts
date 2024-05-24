@@ -3,6 +3,7 @@ import { Game as MainGame } from './scenes/game';
 import { GameOver } from './scenes/gameover';
 import { MainMenu } from './scenes/mainmenu';
 import { Preloader } from './scenes/preloader';
+import PhaserRaycaster from 'phaser-raycaster';
 
 import { Game, Types } from 'phaser';
 
@@ -25,6 +26,15 @@ const config: Types.Core.GameConfig = {
         showStaticBody: true,
       },
     },
+  },
+  plugins: {
+    scene: [
+      {
+        key: 'PhaserRaycaster',
+        plugin: PhaserRaycaster,
+        mapping: 'raycasterPlugin',
+      },
+    ],
   },
   disableContextMenu: true,
   scene: [Boot, Preloader, MainMenu, MainGame, GameOver],
