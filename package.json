@@ -49,6 +49,7 @@
     "webpack-merge": "^5.10.0"
   },
   "dependencies": {
-    "phaser": "^3.80.1"
+    "phaser": "^3.80.1",
+    "phaser-raycaster": "^0.10.10"
   }
 }

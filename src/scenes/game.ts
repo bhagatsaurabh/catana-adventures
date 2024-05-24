@@ -6,6 +6,7 @@ import { Chomper } from '../models/chomper';
 import { Fireball } from '../models/fireball';
 import { Belch } from '../models/belch';
 import { DemonFlower } from '../models/demon-flower';
+import { FlyFly } from '../models/flyfly';
 
 export class Game extends Scene {
   camera: Cameras.Scene2D.Camera;
@@ -20,12 +21,15 @@ export class Game extends Scene {
     fireballs: {},
     belches: {},
   };
+  raycasterPlugin: PhaserRaycaster;
+  raycaster: Raycaster;
 
   constructor() {
     super('game');
   }
 
   create() {
+    this.raycaster = this.raycasterPlugin.createRaycaster({ debug: true });
     this.map = this.add.tilemap('level-1-1');
     const landscapeTileset = this.map.addTilesetImage('Landscape', 'tiles-landscape')!;
     const groundLayer = this.map.createLayer('Landscape', landscapeTileset)!;
@@ -97,6 +101,7 @@ export class Game extends Scene {
 
     this.createChompers();
     this.createDemonFlowers();
+    this.createFlyFlys();
   }
 
   private createChompers() {
@@ -104,6 +109,9 @@ export class Game extends Scene {
   }
   private createDemonFlowers() {
     new DemonFlower(this, { x: 320, y: this.map.heightInPixels - 96 - 16 });
+  }
+  private createFlyFlys() {
+    new FlyFly(this, { x: 320, y: this.map.heightInPixels - 200 });
   }
 
   update(_time: number, _delta: number) {

@@ -7,6 +7,12 @@ export const rand = (min: number, max: number) => {
   window.crypto.getRandomValues(buf);
   return denormalize(buf[0] / (0xffffffff + 1), min, max);
 };
+export const randRadial = (x: number, y: number, r: number) => {
+  const R = r * Math.sqrt(rand(0, 1));
+  const theta = rand(0, 1) * 2 * Math.PI;
+
+  return { x: x + R * Math.cos(theta), y: y + R * Math.sin(theta) };
+};
 export const choose = <T>(vals: T[]): T => vals[Math.round(rand(0, vals.length - 1))];
 const S4 = () => (((1 + Math.random()) * 0x10000) | 0).toString(16).substring(1);
 export const luid = () => `${S4()}${S4()}`;
