@@ -25,6 +25,7 @@ export class Preloader extends Scene {
     this.load.spritesheet('chomper', 'spritesheets/chomper.png', { frameWidth: 40, frameHeight: 40 });
     this.load.spritesheet('flyfly', 'spritesheets/flyfly.png', { frameWidth: 64, frameHeight: 64 });
     this.load.spritesheet('demon-flower', 'spritesheets/demon-flower.png', { frameWidth: 50, frameHeight: 50 });
+    this.load.spritesheet('skeleton', 'spritesheets/skeleton.png', { frameWidth: 64, frameHeight: 64 });
     this.load.image('cloud1', 'sprites/cloud1.png');
     this.load.image('cloud2', 'sprites/cloud2.png');
     this.load.image('cloud3', 'sprites/cloud3.png');

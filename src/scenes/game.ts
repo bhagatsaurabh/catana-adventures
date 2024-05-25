@@ -7,6 +7,7 @@ import { Fireball } from '../models/fireball';
 import { Belch } from '../models/belch';
 import { DemonFlower } from '../models/demon-flower';
 import { FlyFly } from '../models/flyfly';
+import { Skeleton } from '../models/skeleton';
 
 export class Game extends Scene {
   camera: Cameras.Scene2D.Camera;
@@ -99,19 +100,14 @@ export class Game extends Scene {
     this.background.layer0.setOrigin(0, 0).setDepth(-10);
     this.background.layer1.setOrigin(0, 0).setDepth(-10);
 
-    this.createChompers();
-    this.createDemonFlowers();
-    this.createFlyFlys();
+    this.createMonsters();
   }
 
-  private createChompers() {
+  private createMonsters() {
     new Chomper(this, { x: 900, y: this.map.heightInPixels - 120 });
-  }
-  private createDemonFlowers() {
-    new DemonFlower(this, { x: 320, y: this.map.heightInPixels - 96 - 16 });
-  }
-  private createFlyFlys() {
-    new FlyFly(this, { x: 320, y: this.map.heightInPixels - 200 });
+    new DemonFlower(this, { x: 784, y: this.map.heightInPixels - 144 });
+    new FlyFly(this, { x: 600, y: this.map.heightInPixels - 200 });
+    new Skeleton(this, { x: 320, y: this.map.heightInPixels - 400 });
   }
 
   update(_time: number, _delta: number) {
