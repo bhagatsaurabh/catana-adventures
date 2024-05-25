@@ -54,8 +54,7 @@ export class Player {
   speed: number = 0;
   health = this.config.maxHealth;
   ui: { healthBar: GameObjects.Graphics };
-  private isHurting = false;
-  private isDead = false;
+  private flags: { isHurting: boolean; isDead: boolean } = { isHurting: false, isDead: false };
   private standingBody: MatterJS.BodyType;
   private standingSensors: { left: MatterJS.BodyType; right: MatterJS.BodyType; bottom: MatterJS.BodyType };
 
@@ -245,7 +244,7 @@ export class Player {
   prevInput: PlayerInputs = {};
   isDucking = false;
   applyInputs(delta: number, time: number, input: PlayerInputs) {
-    if (this.isDead || this.isHurting) return;
+    if (this.flags.isDead || this.flags.isHurting) return;
 
     let isMoving = false;
     if (input[PlayerInput.LEFT] || input[PlayerInput.RIGHT]) {
@@ -288,7 +287,7 @@ export class Player {
 
   blockAnimation: string | null = null;
   private animate(input: PlayerInputs) {
-    if (this.isDead || this.isHurting) return;
+    if (this.flags.isDead || this.flags.isHurting) return;
 
     if (this.blockAnimation) {
       if (input[PlayerInput.RIGHT] || input[PlayerInput.LEFT] || input[PlayerInput.JUMP] || input[PlayerInput.CROUCH]) {
@@ -417,17 +416,17 @@ export class Player {
     }
   }
   private hurt(direction: number) {
-    this.isHurting = true;
+    this.flags.isHurting = true;
     this.controller.sprite.setVelocity(direction * 2, -3);
     this.direction = direction * -1;
     this.controller.sprite.anims
       .play('hurt')
-      .once(Animations.Events.ANIMATION_COMPLETE, () => (this.isHurting = false));
+      .once(Animations.Events.ANIMATION_COMPLETE, () => (this.flags.isHurting = false));
   }
   private die() {
-    if (this.isDead) return;
+    if (this.flags.isDead) return;
 
-    this.isDead = true;
+    this.flags.isDead = true;
     this.controller.sprite.anims.play('dead');
   }
 

@@ -16,3 +16,4 @@ export const randRadial = (x: number, y: number, r: number) => {
 export const choose = <T>(vals: T[]): T => vals[Math.round(rand(0, vals.length - 1))];
 const S4 = () => (((1 + Math.random()) * 0x10000) | 0).toString(16).substring(1);
 export const luid = () => `${S4()}${S4()}`;
+export const chance = (probability: number) => rand(0, 1) > clamp(probability, 0, 1);

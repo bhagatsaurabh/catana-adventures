@@ -30,10 +30,11 @@ export class Chomper {
   sprite: Physics.Matter.Sprite;
   body: MatterJS.BodyType;
   animations: Record<ChomperAnimationType, Animations.Animation | false>;
-  isDead = false;
-  isDestroyed = false;
-  isHurting = false;
-  lastPos: { x: number; y: number } = { x: 0, y: 0 };
+  flags: { isDead: boolean; isHurting: boolean; isDestroyed: boolean } = {
+    isDead: false,
+    isHurting: false,
+    isDestroyed: false,
+  };
   controller: {
     sensors: {
       left: MatterJS.BodyType;
@@ -69,7 +70,6 @@ export class Chomper {
     public game: Game,
     public pos: Types.Math.Vector2Like,
   ) {
-    this.lastPos = { x: pos.x, y: pos.y };
     this.setSprite();
     this.setPhysics();
     this.setAnimations();
@@ -180,7 +180,7 @@ export class Chomper {
     this.ui = { healthBar };
   }
   private updateUI() {
-    if (this.isDestroyed) return;
+    if (this.flags.isDestroyed) return;
 
     this.ui.healthBar.x = this.sprite.x - 15;
     this.ui.healthBar.y = this.sprite.y - this.sprite.height / 2;
@@ -195,7 +195,7 @@ export class Chomper {
   private beforeUpdate(_delta: number, time: number) {
     this.updateUI();
 
-    if (this.isHurting || this.isDead) return;
+    if (this.flags.isHurting || this.flags.isDead) return;
 
     const distanceToPlayer = M.Distance.Between(this.sprite.x, this.sprite.y, this.game.player.x, this.game.player.y);
     if (distanceToPlayer <= this.config.chaseDistance) {
@@ -212,7 +212,7 @@ export class Chomper {
     this.controller.numOfTouchingSurfaces.bottomRight = 0;
   }
   private collisionActive(event: { pairs: Types.Physics.Matter.MatterCollisionPair[] }) {
-    if (this.isHurting || this.isDead) return;
+    if (this.flags.isHurting || this.flags.isDead) return;
 
     const left = this.controller.sensors.left;
     const right = this.controller.sensors.right;
@@ -245,7 +245,7 @@ export class Chomper {
     }
   }
   private afterUpdate(_delta: number, _time: number) {
-    if (this.isHurting || this.isDead) return;
+    if (this.flags.isHurting || this.flags.isDead) return;
 
     this.controller.blocked.right = this.controller.numOfTouchingSurfaces.right > 0 ? true : false;
     this.controller.blocked.left = this.controller.numOfTouchingSurfaces.left > 0 ? true : false;
@@ -271,7 +271,6 @@ export class Chomper {
           this.direction = this.direction * -1;
         }
         if (time - this.controller.lastJumpedAt >= this.config.jumpCooldown) {
-          this.lastPos = { x: this.sprite.x, y: this.sprite.y };
           this.move();
           this.controller.lastJumpedAt = time;
         }
@@ -308,19 +307,19 @@ export class Chomper {
     }
   }
   private hurt() {
-    this.isHurting = true;
+    this.flags.isHurting = true;
     this.sprite.setVelocity(this.direction * -1 * 2, -3);
-    this.sprite.anims.play('hurt').once(Animations.Events.ANIMATION_COMPLETE, () => (this.isHurting = false));
+    this.sprite.anims.play('hurt').once(Animations.Events.ANIMATION_COMPLETE, () => (this.flags.isHurting = false));
   }
   private die() {
-    if (this.isDead) return;
+    if (this.flags.isDead) return;
 
     (this.sprite.body as MatterJS.BodyType).isSensor = true;
-    this.isDead = true;
+    this.flags.isDead = true;
     this.sprite.anims.play('die').once(Animations.Events.ANIMATION_COMPLETE, () => this.destroy());
   }
   destroy() {
-    this.isDestroyed = true;
+    this.flags.isDestroyed = true;
     this.sprite.destroy();
     this.ui.healthBar.destroy();
   }

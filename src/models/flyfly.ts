@@ -28,8 +28,7 @@ export class FlyFly {
   sprite: Physics.Matter.Sprite;
   body: MatterJS.BodyType;
   animations: Record<FlyFlyAnimationType, Animations.Animation | false>;
-  isDead = false;
-  isDestroyed = false;
+  flags: { isDead: boolean; isDestroyed: boolean } = { isDead: false, isDestroyed: false };
   controller: {
     sensors: {
       topLeft: MatterJS.BodyType;
@@ -202,7 +201,7 @@ export class FlyFly {
     this.ui = { healthBar };
   }
   private updateUI() {
-    if (this.isDestroyed) return;
+    if (this.flags.isDestroyed) return;
 
     this.ui.healthBar.x = this.sprite.x - 15;
     this.ui.healthBar.y = this.sprite.y - this.sprite.height / 2;
@@ -235,7 +234,7 @@ export class FlyFly {
   }
 
   private beforeUpdate(_delta: number, time: number) {
-    if (this.isDead) return;
+    if (this.flags.isDead) return;
 
     this.updateVision();
     this.updateUI();
@@ -258,7 +257,7 @@ export class FlyFly {
     this.controller.numOfTouchingSurfaces.topRight = 0;
   }
   private collisionActive(event: { pairs: Types.Physics.Matter.MatterCollisionPair[] }) {
-    if (this.isDead) return;
+    if (this.flags.isDead) return;
 
     const left = this.controller.sensors.left;
     const right = this.controller.sensors.right;
@@ -303,7 +302,7 @@ export class FlyFly {
     }
   }
   private afterUpdate(_delta: number, _time: number) {
-    if (this.isDead) return;
+    if (this.flags.isDead) return;
 
     this.controller.blocked.right = this.controller.numOfTouchingSurfaces.right > 0 ? true : false;
     this.controller.blocked.left = this.controller.numOfTouchingSurfaces.left > 0 ? true : false;
@@ -328,7 +327,7 @@ export class FlyFly {
   }
 
   private move() {
-    if (this.isDead) return;
+    if (this.flags.isDead) return;
 
     const waypoint = this.state === 'chase' ? { x: this.game.player.x, y: this.game.player.y } : this.nextWaypoint;
     const distanceToWaypoint = M.Distance.Between(this.x, this.y, waypoint.x, waypoint.y);
@@ -362,14 +361,14 @@ export class FlyFly {
     this.die();
   }
   private die() {
-    if (this.isDead) return;
+    if (this.flags.isDead) return;
 
     (this.sprite.body as MatterJS.BodyType).isSensor = true;
-    this.isDead = true;
+    this.flags.isDead = true;
     this.sprite.anims.play('die').once(Animations.Events.ANIMATION_COMPLETE, () => this.destroy());
   }
   destroy() {
-    this.isDestroyed = true;
+    this.flags.isDestroyed = true;
     this.sprite.destroy();
     this.ui.healthBar.destroy();
   }
