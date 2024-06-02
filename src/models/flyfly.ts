@@ -94,6 +94,7 @@ export class FlyFly {
     this.setUI();
     this.setVision();
 
+    (this.sprite as any).isDestroyable = (body: MatterJS.BodyType) => body === this.body;
     this.sprite.anims.play('idle');
   }
 

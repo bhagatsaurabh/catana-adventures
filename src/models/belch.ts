@@ -29,6 +29,7 @@ export class Belch {
     this.setAnimations();
     this.setHandlers();
 
+    (this.sprite as any).isDestroyable = (body: MatterJS.BodyType) => body === this.body;
     this.sprite.anims.play('move', true);
 
     this.game.objects.belches[this.id] = this;

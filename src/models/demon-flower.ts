@@ -62,6 +62,7 @@ export class DemonFlower {
     this.setHandlers();
     this.setUI();
 
+    (this.sprite as any).isDestroyable = (body: MatterJS.BodyType) => body === this.body;
     this.sprite.anims.play('idle');
   }
 
@@ -122,7 +123,7 @@ export class DemonFlower {
     const die = this.sprite.anims.create({
       key: 'die',
       frames: this.sprite.anims.generateFrameNumbers('demon-flower', { start: 56, end: 64 }),
-      frameRate: 14,
+      frameRate: 15,
       repeat: 0,
     });
 

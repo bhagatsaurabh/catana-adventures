@@ -54,7 +54,7 @@ export class Player {
   speed: number = 0;
   health = this.config.maxHealth;
   ui: { healthBar: GameObjects.Graphics };
-  private flags: { isHurting: boolean; isDead: boolean } = { isHurting: false, isDead: false };
+  flags: { isHurting: boolean; isDead: boolean } = { isHurting: false, isDead: false };
   private standingBody: MatterJS.BodyType;
   private standingSensors: { left: MatterJS.BodyType; right: MatterJS.BodyType; bottom: MatterJS.BodyType };
 
@@ -78,6 +78,7 @@ export class Player {
     this.setHandlers();
     this.setUI();
 
+    (this.controller.sprite as any).isDestroyable = () => false;
     this.controller.sprite.setScale(1.5, 1.5);
   }
 

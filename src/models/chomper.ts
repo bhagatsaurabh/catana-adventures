@@ -76,6 +76,7 @@ export class Chomper {
     this.setHandlers();
     this.setUI();
 
+    (this.sprite as any).isDestroyable = (body: MatterJS.BodyType) => body === this.body;
     this.sprite.anims.play('idle');
   }
 
