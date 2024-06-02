@@ -50,11 +50,18 @@ export class Skeleton {
   sprite: Physics.Matter.Sprite;
   body: MatterJS.BodyType;
   animations: Record<SkeletonAnimationType, Animations.Animation | false>;
-  flags: { isHurting: boolean; isDead: boolean; isDestroyed: boolean; isDormant: boolean } = {
+  flags: {
+    isHurting: boolean;
+    isDead: boolean;
+    isDestroyed: boolean;
+    isDormant: boolean;
+    isTransforming: 'in' | 'out' | false;
+  } = {
     isHurting: false,
     isDead: false,
     isDestroyed: false,
     isDormant: false,
+    isTransforming: false,
   };
   lastPos: { x: number; y: number } = { x: 0, y: 0 };
   controller: {
@@ -98,6 +105,7 @@ export class Skeleton {
     this.setHandlers();
     this.setUI();
 
+    (this.sprite as any).isDestroyable = (body: MatterJS.BodyType) => body === this.body;
     this.sprite.anims.play('idle');
   }
 
@@ -119,6 +127,7 @@ export class Skeleton {
     };
 
     this.body = this.game.matter.bodies.rectangle(w / 2, w / 2 + 7, w / 3, h / 1.5);
+    (this.body as any).props = { destroyable: true };
 
     const compoundBody = this.game.matter.body.create({
       parts: [
@@ -155,28 +164,28 @@ export class Skeleton {
     const hurt = this.sprite.anims.create({
       key: 'hurt',
       frames: this.sprite.anims.generateFrameNumbers('skeleton', { start: 24, end: 26 }),
-      frameRate: 20,
+      frameRate: 8,
       repeat: 0,
     });
     const die = this.sprite.anims.create({
       key: 'die',
       frames: this.sprite.anims.generateFrameNumbers('skeleton', { start: 24, end: 30 }),
-      frameRate: 24,
+      frameRate: 15,
       repeat: 0,
     });
     const transformIn = this.sprite.anims.create({
       key: 'transform-in',
       frames: this.sprite.anims.generateFrameNumbers('skeleton', { start: 32, end: 37 }),
-      frameRate: 16,
-      repeat: -1,
+      frameRate: 14,
+      repeat: 0,
     });
     const transformOut = this.sprite.anims.create({
-      key: 'transformOut',
+      key: 'transform-out',
       frames: this.sprite.anims.generateFrameNumbers('skeleton', {
         frames: [37, 36, 35, 34, 33, 32],
       }),
-      frameRate: 16,
-      repeat: -1,
+      frameRate: 14,
+      repeat: 0,
     });
     const skull = this.sprite.anims.create({
       key: 'skull',
@@ -231,20 +240,20 @@ export class Skeleton {
   private beforeUpdate(_delta: number, time: number) {
     this.updateUI();
 
-    if (this.flags.isHurting || this.flags.isDead) return;
-
-    const distanceToPlayer = M.Distance.Between(this.sprite.x, this.sprite.y, this.game.player.x, this.game.player.y);
-    if (distanceToPlayer <= this.config.chaseDistance) {
-      this.state = 'chase';
-      if (this.flags.isDormant) {
-        this.flags.isDormant = false;
-        this.config.lastDormantAt = time;
+    if (!this.flags.isHurting && !this.flags.isDead && this.state !== 'fly') {
+      const distanceToPlayer = M.Distance.Between(this.sprite.x, this.sprite.y, this.game.player.x, this.game.player.y);
+      if (distanceToPlayer <= this.config.chaseDistance && !this.game.player.flags.isDead) {
+        this.state = 'chase';
+        if (this.flags.isDormant) {
+          this.flags.isDormant = false;
+          this.config.lastDormantAt = time;
+        }
+      } else {
+        this.state = 'roam';
       }
-    } else {
-      this.state = 'roam';
-    }
 
-    this.applyInputs(time);
+      this.applyInputs(time);
+    }
 
     this.controller.numOfTouchingSurfaces.left = 0;
     this.controller.numOfTouchingSurfaces.right = 0;
@@ -252,7 +261,7 @@ export class Skeleton {
     this.controller.numOfTouchingSurfaces.bottomRight = 0;
   }
   private collisionActive(event: { pairs: Types.Physics.Matter.MatterCollisionPair[] }) {
-    if (this.flags.isHurting || this.flags.isDead) return;
+    if (this.flags.isHurting || this.flags.isDead || this.state === 'fly') return;
 
     const left = this.controller.sensors.left;
     const right = this.controller.sensors.right;
@@ -326,7 +335,8 @@ export class Skeleton {
       if (
         ((this.direction === 1 && !this.controller.blocked.bottomRight) ||
           (this.direction === -1 && !this.controller.blocked.bottomLeft)) &&
-        canMove
+        canMove &&
+        this.state !== 'chase'
       ) {
         this.direction = this.direction * -1;
       }
@@ -334,8 +344,16 @@ export class Skeleton {
   }
 
   private move() {
-    this.sprite.anims.play('move', true);
-    this.sprite.setVelocity(this.direction * this.config.speed, 0);
+    if (
+      this.state === 'chase' &&
+      ((this.direction === 1 && !this.controller.blocked.bottomRight) ||
+        (this.direction === -1 && !this.controller.blocked.bottomLeft))
+    ) {
+      this.sprite.anims.play('idle', true);
+    } else {
+      this.sprite.anims.play('move', true);
+      this.sprite.setVelocity(this.direction * this.config.speed, 0);
+    }
   }
   private attack() {
     if (this.state === 'attack') return;
@@ -344,6 +362,20 @@ export class Skeleton {
 
     this.sprite.anims.play('attack', true).once(Animations.Events.ANIMATION_COMPLETE, () => (this.state = 'roam'));
     this.game.player.hit(this.config.attackPower(), this.direction);
+  }
+  private transform(dir: 'in' | 'out') {
+    this.flags.isTransforming = dir;
+    this.sprite.anims.play(`transform-${dir}`).once(Animations.Events.ANIMATION_COMPLETE, () => {
+      this.flags.isTransforming = false;
+      if (dir === 'in') {
+        setTimeout(() => this.transform('out'), 4000);
+        this.state = 'fly';
+        this.body.isSensor = true;
+      } else {
+        this.body.isSensor = false;
+      }
+      this.sprite.anims.play(dir === 'in' ? 'skull' : 'idle');
+    });
   }
   hit(fireball?: Fireball) {
     if (!fireball) return;
@@ -355,6 +387,9 @@ export class Skeleton {
       this.die();
     } else {
       this.hurt();
+      if (normalize(this.health, 0, this.config.maxHealth) <= this.config.etherealFormThreshold) {
+        this.transform('in');
+      }
     }
   }
   private hurt() {

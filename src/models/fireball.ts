@@ -107,7 +107,7 @@ export class Fireball {
         const fireballBody = bodyA === this.body ? bodyA : bodyB;
         const otherBody = bodyA === fireballBody ? bodyB : bodyA;
 
-        if (otherBody.gameObject?.texture?.key !== 'neko' && !this.isDestroyed) {
+        if (!this.isDestroyed && (otherBody.gameObject?.isDestroyable?.(otherBody) || otherBody.gameObject?.tile)) {
           this.explode();
         }
       }
