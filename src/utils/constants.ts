@@ -18,3 +18,4 @@ export const touchMap: Record<TouchInput, PlayerInput> = {
   A: PlayerInput.POWER_ATTACK,
   B: PlayerInput.FAST_ATTACK,
 };
+export const PI2 = Math.PI * 2;

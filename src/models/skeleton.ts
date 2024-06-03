@@ -2,6 +2,7 @@ import { Animations, GameObjects, Math as M, Physics, Types } from 'phaser';
 import { Game } from '../scenes/game';
 import { chance, choose, clampLow, denormalize, normalize, rand } from '../utils';
 import { Fireball } from './fireball';
+import { DeterministicRandomPath } from '../utils/drp';
 
 export type SkeletonAnimationType =
   | 'idle'
@@ -93,6 +94,9 @@ export class Skeleton {
   set direction(value: number) {
     this.sprite.flipX = value === -1;
   }
+  path: DeterministicRandomPath;
+  pathOrigin: { x: number; y: number };
+  pathTS: number;
 
   constructor(
     public game: Game,
@@ -214,7 +218,7 @@ export class Skeleton {
     );
     this.game.matter.world.on(
       Physics.Matter.Events.COLLISION_ACTIVE,
-      (event: { pairs: Types.Physics.Matter.MatterCollisionPair[] }) => this.collisionActive(event),
+      (event: { pairs: Types.Physics.Matter.MatterCollisionPair[]; timestamp: number }) => this.collisionActive(event),
     );
     this.game.matter.world.on(Physics.Matter.Events.AFTER_UPDATE, (event: { delta: number; timestamp: number }) =>
       this.afterUpdate(event.delta, event.timestamp),
@@ -253,6 +257,8 @@ export class Skeleton {
       }
 
       this.applyInputs(time);
+    } else if (this.state === 'fly') {
+      this.fly(time);
     }
 
     this.controller.numOfTouchingSurfaces.left = 0;
@@ -260,7 +266,8 @@ export class Skeleton {
     this.controller.numOfTouchingSurfaces.bottomLeft = 0;
     this.controller.numOfTouchingSurfaces.bottomRight = 0;
   }
-  private collisionActive(event: { pairs: Types.Physics.Matter.MatterCollisionPair[] }) {
+  private collisionActive(event: { pairs: Types.Physics.Matter.MatterCollisionPair[]; timestamp: number }) {
+    console.log(event);
     if (this.flags.isHurting || this.flags.isDead || this.state === 'fly') return;
 
     const left = this.controller.sensors.left;
@@ -279,7 +286,7 @@ export class Skeleton {
           const fireballGO = (
             bodyA.gameObject?.texture?.key === 'fireball' ? bodyA.gameObject : bodyB.gameObject
           ) as GameObjects.GameObject;
-          this.hit(this.game.objects.fireballs[fireballGO.name]);
+          this.hit(event.timestamp, this.game.objects.fireballs[fireballGO.name]);
         }
         continue;
       } else if (bodyA === bottomLeft || bodyB === bottomLeft) {
@@ -363,21 +370,28 @@ export class Skeleton {
     this.sprite.anims.play('attack', true).once(Animations.Events.ANIMATION_COMPLETE, () => (this.state = 'roam'));
     this.game.player.hit(this.config.attackPower(), this.direction);
   }
-  private transform(dir: 'in' | 'out') {
+  private fly(time: number) {
+    const newPos = this.path.next(time - this.pathTS);
+    this.sprite.x = this.pathOrigin.x + newPos.x;
+    this.sprite.y = this.pathOrigin.y + newPos.y;
+  }
+  private transform(dir: 'in' | 'out', time: number) {
     this.flags.isTransforming = dir;
     this.sprite.anims.play(`transform-${dir}`).once(Animations.Events.ANIMATION_COMPLETE, () => {
       this.flags.isTransforming = false;
       if (dir === 'in') {
-        setTimeout(() => this.transform('out'), 4000);
         this.state = 'fly';
         this.body.isSensor = true;
+        this.path = new DeterministicRandomPath({ x: this.sprite.x, y: this.sprite.y });
+        this.pathOrigin = { x: this.sprite.x, y: this.sprite.y };
+        this.pathTS = time;
       } else {
         this.body.isSensor = false;
       }
       this.sprite.anims.play(dir === 'in' ? 'skull' : 'idle');
     });
   }
-  hit(fireball?: Fireball) {
+  hit(time: number, fireball?: Fireball) {
     if (!fireball) return;
 
     this.direction = fireball.direction * -1;
@@ -388,7 +402,7 @@ export class Skeleton {
     } else {
       this.hurt();
       if (normalize(this.health, 0, this.config.maxHealth) <= this.config.etherealFormThreshold) {
-        this.transform('in');
+        this.transform('in', time);
       }
     }
   }
