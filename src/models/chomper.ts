@@ -242,9 +242,15 @@ export class Chomper {
         this.controller.numOfTouchingSurfaces.bottomLeft += 1;
       } else if (bodyA === bottomRight || bodyB === bottomRight) {
         this.controller.numOfTouchingSurfaces.bottomRight += 1;
-      } else if ((bodyA === left && bodyB.isStatic) || (bodyB === left && bodyA.isStatic)) {
+      } else if (
+        (bodyA === left && (bodyB.isStatic || bodyB.gameObject)) ||
+        (bodyB === left && (bodyA.isStatic || bodyA.gameObject))
+      ) {
         this.controller.numOfTouchingSurfaces.left += 1;
-      } else if ((bodyA === right && bodyB.isStatic) || (bodyB === right && bodyA.isStatic)) {
+      } else if (
+        (bodyA === right && (bodyB.isStatic || bodyB.gameObject)) ||
+        (bodyB === right && (bodyA.isStatic || bodyA.gameObject))
+      ) {
         this.controller.numOfTouchingSurfaces.right += 1;
       }
     }
@@ -273,12 +279,18 @@ export class Chomper {
             this.sprite.y + this.sprite.height,
           )
         ) {
-          this.direction = this.direction * -1;
+          this.direction *= -1;
         }
         if (time - this.controller.lastJumpedAt >= this.config.jumpCooldown) {
           this.move();
           this.controller.lastJumpedAt = time;
         }
+      }
+      if (
+        (this.controller.blocked.left && this.direction === -1) ||
+        (this.controller.blocked.right && this.direction === 1)
+      ) {
+        this.direction *= -1;
       }
     }
   }

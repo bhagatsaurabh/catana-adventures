@@ -19,6 +19,7 @@ export class Preloader extends Scene {
 
     this.load.tilemapTiledJSON('level-1-1', 'maps/level-1-1.json');
     this.load.image('tiles-landscape', 'spritesheets/tiles-landscape.png');
+    this.load.json('monsters-1-1', 'maps/monsters-1-1.json');
     this.load.spritesheet('neko', 'spritesheets/neko.png', { frameWidth: 32, frameHeight: 32 });
     this.load.spritesheet('fireball', 'spritesheets/fireball.png', { frameWidth: 32, frameHeight: 32 });
     this.load.spritesheet('belch', 'spritesheets/belch.png', { frameWidth: 32, frameHeight: 32 });

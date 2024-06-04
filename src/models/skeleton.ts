@@ -142,8 +142,8 @@ export class Skeleton {
     const h = this.sprite.height;
     this.controller = {
       sensors: {
-        left: this.game.matter.bodies.rectangle(0, w / 2, 5, 10, { isSensor: true }),
-        right: this.game.matter.bodies.rectangle(w, w / 2, 5, 10, { isSensor: true }),
+        left: this.game.matter.bodies.rectangle(w * 0.25, w / 2, 5, 10, { isSensor: true }),
+        right: this.game.matter.bodies.rectangle(w * 0.75, w / 2, 5, 10, { isSensor: true }),
         bottomLeft: this.game.matter.bodies.rectangle(w * 0.25, w - 2.5, 10, 5, { isSensor: true }),
         bottomRight: this.game.matter.bodies.rectangle(w * 0.75, w - 2.5, 10, 5, { isSensor: true }),
       },
@@ -265,7 +265,7 @@ export class Skeleton {
   private beforeUpdate(_delta: number, time: number) {
     this.updateUI();
 
-    if (this.flags.isDead && !this.flags.isDestroyed && this.state === 'fly') {
+    if (this.flags.isDead && !this.flags.isDestroyed && this.state === 'fly' && this.outPos && this.sprite) {
       this.sprite.setPosition(this.outPos.x, this.outPos.y - this.sprite.height / 1.5);
     }
     if (this.flags.isHurting || this.flags.isDead) return;
@@ -288,7 +288,7 @@ export class Skeleton {
       this.applyInputs(time);
     } else if (!this.flags.isTransforming) {
       if (distanceToPlayer > 750) {
-        this.transform('out', time);
+        this.transform('out');
       } else {
         this.fly(time);
       }
@@ -327,9 +327,15 @@ export class Skeleton {
         this.controller.numOfTouchingSurfaces.bottomLeft += 1;
       } else if (bodyA === bottomRight || bodyB === bottomRight) {
         this.controller.numOfTouchingSurfaces.bottomRight += 1;
-      } else if ((bodyA === left && bodyB.isStatic) || (bodyB === left && bodyA.isStatic)) {
+      } else if (
+        (bodyA === left && (bodyB.isStatic || bodyB.gameObject)) ||
+        (bodyB === left && (bodyA.isStatic || bodyA.gameObject))
+      ) {
         this.controller.numOfTouchingSurfaces.left += 1;
-      } else if ((bodyA === right && bodyB.isStatic) || (bodyB === right && bodyA.isStatic)) {
+      } else if (
+        (bodyA === right && (bodyB.isStatic || bodyB.gameObject)) ||
+        (bodyB === right && (bodyA.isStatic || bodyA.gameObject))
+      ) {
         this.controller.numOfTouchingSurfaces.right += 1;
       }
     }
@@ -370,16 +376,18 @@ export class Skeleton {
       }
 
       let canMove = this.controller.blocked.bottomRight || this.controller.blocked.bottomLeft;
-      if (canMove) {
-        this.move();
-      }
       if (
         ((this.direction === 1 && !this.controller.blocked.bottomRight) ||
-          (this.direction === -1 && !this.controller.blocked.bottomLeft)) &&
+          (this.direction === -1 && !this.controller.blocked.bottomLeft) ||
+          (this.direction === -1 && this.controller.blocked.left) ||
+          (this.direction === 1 && this.controller.blocked.right)) &&
         canMove &&
         this.state !== 'chase'
       ) {
         this.direction = this.direction * -1;
+      }
+      if (canMove) {
+        this.move();
       }
     }
   }
@@ -426,8 +434,10 @@ export class Skeleton {
     this.flags.isTransforming = dir;
     if (dir === 'in') {
       this.inPos = { x: this.sprite.x, y: this.sprite.y };
+      this.game.objects.skulls[this.id] = this;
     } else {
       this.outPos = { x: this.sprite.x, y: this.sprite.y };
+      delete this.game.objects.skulls[this.id];
     }
     this.sprite.anims.play(`transform-${dir}`).once(Animations.Events.ANIMATION_COMPLETE, () => {
       if ((this.flags.isTransforming as any) === 'in') {
@@ -481,6 +491,7 @@ export class Skeleton {
       this.outPos = { x: this.sprite.x, y: this.sprite.y };
       this.game.lightsOn();
       this.light.off();
+      delete this.game.objects.skulls[this.id];
     }
     this.flags.isDead = true;
     this.game.lights.removeLight(this.light.source);
