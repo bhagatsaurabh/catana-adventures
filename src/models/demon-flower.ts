@@ -1,6 +1,6 @@
 import { Animations, GameObjects, Math as M, Physics, Types } from 'phaser';
 import { Game } from '../scenes/game';
-import { clampLow, denormalize, normalize, rand } from '../utils';
+import { clampLow, denormalize, luid, normalize, rand } from '../utils';
 import { Fireball } from './fireball';
 import { Belch } from './belch';
 
@@ -24,6 +24,7 @@ export interface DemonFlowerConfig {
 export type DemonFlowerState = 'idle' | 'belch' | 'attack';
 
 export class DemonFlower {
+  id: string;
   config: DemonFlowerConfig = {
     belchSpeed: 4,
     attackPower: () => rand(12, 16),
@@ -56,6 +57,7 @@ export class DemonFlower {
     public game: Game,
     public pos: Types.Math.Vector2Like,
   ) {
+    this.id = luid();
     this.setSprite();
     this.setPhysics();
     this.setAnimations();
@@ -68,6 +70,8 @@ export class DemonFlower {
 
   private setSprite() {
     this.sprite = this.game.matter.add.sprite(0, 0, 'demon-flower');
+    this.sprite.setPipeline('Light2D');
+    this.sprite.name = `demonflower-${this.id}`;
   }
   private setPhysics() {
     const h = this.sprite.height;
@@ -227,7 +231,7 @@ export class DemonFlower {
 
       const distanceToPlayer = M.Distance.Between(this.sprite.x, this.sprite.y, this.game.player.x, this.game.player.y);
       if (distanceToPlayer <= this.config.attackDistance) {
-        this.game.player.hit(this.config.attackPower(), this.direction * -1);
+        this.game.player.hit(this.config.attackPower(), this.direction * -1, this.sprite.name);
       }
     });
   }

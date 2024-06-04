@@ -1,8 +1,9 @@
 import { Animations, GameObjects, Math as M, Physics, Types } from 'phaser';
 import { Game } from '../scenes/game';
-import { chance, choose, clampLow, denormalize, normalize, rand } from '../utils';
+import { chance, choose, clampLow, denormalize, luid, normalize, rand } from '../utils';
 import { Fireball } from './fireball';
 import { DeterministicRandomPath } from '../utils/drp';
+import { AnimatedLight } from '../helpers/animated-light';
 
 export type SkeletonAnimationType =
   | 'idle'
@@ -28,25 +29,32 @@ export interface SkeletonConfig {
   dormancyStartedAt: number;
   minDormancyDuration: number;
   maxDormancyDuration: number;
+  lightColor: number;
+  lightRadius: number;
+  lightIntensity: number;
 }
 export type SkeletonState = 'roam' | 'chase' | 'attack' | 'fly';
 
 export class Skeleton {
+  id: string;
   config: SkeletonConfig = {
     speed: 1,
     attackPower: () => rand(6, 12),
     chaseDistance: 200,
     attackDistance: 45,
     maxHealth: 30,
-    dynamicDormancyDuration: 3000,
-    dormancyCooldown: 4000,
-    dormancyProbability: 0.45,
-    etherealFormThreshold: 0.25,
-    etherealFormProbability: 0.2,
-    lastDormantAt: -1,
-    dormancyStartedAt: -1,
+    dynamicDormancyDuration: rand(3000, 7000),
     minDormancyDuration: 3000,
     maxDormancyDuration: 7000,
+    dormancyCooldown: rand(3000, 5000),
+    dormancyProbability: rand(0.35, 0.55),
+    etherealFormThreshold: 0.25,
+    etherealFormProbability: /* rand(0.2, 0.3) */ 1,
+    lastDormantAt: -1,
+    dormancyStartedAt: -1,
+    lightColor: 0xee4b2b,
+    lightRadius: 65,
+    lightIntensity: 0.9,
   };
   sprite: Physics.Matter.Sprite;
   body: MatterJS.BodyType;
@@ -64,7 +72,6 @@ export class Skeleton {
     isDormant: false,
     isTransforming: false,
   };
-  lastPos: { x: number; y: number } = { x: 0, y: 0 };
   controller: {
     sensors: {
       left: MatterJS.BodyType;
@@ -97,24 +104,38 @@ export class Skeleton {
   path: DeterministicRandomPath;
   pathOrigin: { x: number; y: number };
   pathTS: number;
+  inPos: { x: number; y: number };
+  outPos: { x: number; y: number };
+  prevPathX: number;
+  light: AnimatedLight;
 
   constructor(
     public game: Game,
     public pos: Types.Math.Vector2Like,
   ) {
-    this.lastPos = { x: pos.x, y: pos.y };
+    this.id = luid();
     this.setSprite();
     this.setPhysics();
     this.setAnimations();
     this.setHandlers();
     this.setUI();
+    this.setLight();
 
     (this.sprite as any).isDestroyable = (body: MatterJS.BodyType) => body === this.body;
     this.sprite.anims.play('idle');
   }
 
+  private setLight() {
+    this.light = new AnimatedLight(
+      this.game,
+      this.game.lights.addLight(this.sprite.x, this.sprite.y, this.config.lightRadius, this.config.lightColor, 0),
+      { radius: this.config.lightRadius, intensity: this.config.lightIntensity },
+    );
+  }
   private setSprite() {
     this.sprite = this.game.matter.add.sprite(0, 0, 'skeleton');
+    this.sprite.setPipeline('Light2D');
+    this.sprite.name = `skeleton-${this.id}`;
   }
   private setPhysics() {
     const w = this.sprite.width;
@@ -244,8 +265,16 @@ export class Skeleton {
   private beforeUpdate(_delta: number, time: number) {
     this.updateUI();
 
-    if (!this.flags.isHurting && !this.flags.isDead && this.state !== 'fly') {
-      const distanceToPlayer = M.Distance.Between(this.sprite.x, this.sprite.y, this.game.player.x, this.game.player.y);
+    if (this.flags.isDead && !this.flags.isDestroyed && this.state === 'fly') {
+      this.sprite.setPosition(this.outPos.x, this.outPos.y - this.sprite.height / 1.5);
+    }
+    if (this.flags.isHurting || this.flags.isDead) return;
+
+    this.light.source.x = this.sprite.x;
+    this.light.source.y = this.sprite.y;
+    const distanceToPlayer = M.Distance.Between(this.sprite.x, this.sprite.y, this.game.player.x, this.game.player.y);
+
+    if (this.state !== 'fly' && !this.flags.isTransforming) {
       if (distanceToPlayer <= this.config.chaseDistance && !this.game.player.flags.isDead) {
         this.state = 'chase';
         if (this.flags.isDormant) {
@@ -257,8 +286,14 @@ export class Skeleton {
       }
 
       this.applyInputs(time);
-    } else if (this.state === 'fly') {
-      this.fly(time);
+    } else if (!this.flags.isTransforming) {
+      if (distanceToPlayer > 750) {
+        this.transform('out', time);
+      } else {
+        this.fly(time);
+      }
+    } else if (this.flags.isTransforming === 'out') {
+      this.sprite.setPosition(this.inPos.x, this.inPos.y - this.sprite.height / 1.5);
     }
 
     this.controller.numOfTouchingSurfaces.left = 0;
@@ -267,8 +302,7 @@ export class Skeleton {
     this.controller.numOfTouchingSurfaces.bottomRight = 0;
   }
   private collisionActive(event: { pairs: Types.Physics.Matter.MatterCollisionPair[]; timestamp: number }) {
-    console.log(event);
-    if (this.flags.isHurting || this.flags.isDead || this.state === 'fly') return;
+    if (this.flags.isHurting || this.flags.isDead) return;
 
     const left = this.controller.sensors.left;
     const right = this.controller.sensors.right;
@@ -364,31 +398,54 @@ export class Skeleton {
   }
   private attack() {
     if (this.state === 'attack') return;
-
-    this.state = 'attack';
-
-    this.sprite.anims.play('attack', true).once(Animations.Events.ANIMATION_COMPLETE, () => (this.state = 'roam'));
-    this.game.player.hit(this.config.attackPower(), this.direction);
+    else if (this.state === 'fly') {
+      this.game.player.hit(this.config.attackPower(), this.direction, this.sprite.name);
+    } else {
+      this.state = 'attack';
+      this.sprite.anims.play('attack', true).once(Animations.Events.ANIMATION_COMPLETE, () => (this.state = 'roam'));
+      this.game.player.hit(this.config.attackPower(), this.direction, this.sprite.name);
+    }
   }
   private fly(time: number) {
+    if (this.flags.isDead) return;
+    if (this.game.player.flags.isDead) {
+      this.transform('out', time);
+      return;
+    }
+
+    this.prevPathX = this.sprite.x;
     const newPos = this.path.next(time - this.pathTS);
     this.sprite.x = this.pathOrigin.x + newPos.x;
     this.sprite.y = this.pathOrigin.y + newPos.y;
+    this.direction = Math.sign(this.sprite.x - this.prevPathX);
+
+    this.pathOrigin.x += Math.sign(this.game.player.x - this.pathOrigin.x) * 0.75;
+    this.pathOrigin.y += Math.sign(this.game.player.y - this.pathOrigin.y) * 0.75;
   }
-  private transform(dir: 'in' | 'out', time: number) {
+  private transform(dir: 'in' | 'out', time?: number) {
     this.flags.isTransforming = dir;
+    if (dir === 'in') {
+      this.inPos = { x: this.sprite.x, y: this.sprite.y };
+    } else {
+      this.outPos = { x: this.sprite.x, y: this.sprite.y };
+    }
     this.sprite.anims.play(`transform-${dir}`).once(Animations.Events.ANIMATION_COMPLETE, () => {
-      this.flags.isTransforming = false;
-      if (dir === 'in') {
+      if ((this.flags.isTransforming as any) === 'in') {
         this.state = 'fly';
+        this.game.lightsOff();
+        this.light.on();
         this.body.isSensor = true;
-        this.path = new DeterministicRandomPath({ x: this.sprite.x, y: this.sprite.y });
         this.pathOrigin = { x: this.sprite.x, y: this.sprite.y };
-        this.pathTS = time;
+        this.path = new DeterministicRandomPath({ x: this.sprite.x, y: this.sprite.y }, 150, 150, 150);
+        this.pathTS = time ?? 0;
       } else {
+        this.state = 'roam';
+        this.game.lightsOn();
+        this.light.off();
         this.body.isSensor = false;
       }
       this.sprite.anims.play(dir === 'in' ? 'skull' : 'idle');
+      this.flags.isTransforming = false;
     });
   }
   hit(time: number, fireball?: Fireball) {
@@ -401,7 +458,10 @@ export class Skeleton {
       this.die();
     } else {
       this.hurt();
-      if (normalize(this.health, 0, this.config.maxHealth) <= this.config.etherealFormThreshold) {
+      if (
+        normalize(this.health, 0, this.config.maxHealth) <= this.config.etherealFormThreshold &&
+        chance(this.config.etherealFormProbability)
+      ) {
         this.transform('in', time);
       }
     }
@@ -417,8 +477,14 @@ export class Skeleton {
   private die() {
     if (this.flags.isDead) return;
 
-    (this.sprite.body as MatterJS.BodyType).isSensor = true;
+    if (!this.game.lightState) {
+      this.outPos = { x: this.sprite.x, y: this.sprite.y };
+      this.game.lightsOn();
+      this.light.off();
+    }
     this.flags.isDead = true;
+    this.game.lights.removeLight(this.light.source);
+    (this.sprite.body as MatterJS.BodyType).isSensor = true;
     this.sprite.anims.play('die').once(Animations.Events.ANIMATION_COMPLETE, () => this.destroy());
   }
   destroy() {

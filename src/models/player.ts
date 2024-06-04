@@ -4,6 +4,7 @@ import { Game } from '../scenes/game';
 import { clamp, clampLow, denormalize, normalize } from '../utils';
 import { InputManager } from '../helpers/input-manager';
 import { Fireball } from './fireball';
+import { AnimatedLight } from '../helpers/animated-light';
 
 export interface PlayerConfig {
   maxRunSpeed: number;
@@ -14,6 +15,8 @@ export interface PlayerConfig {
   powerAttackCooldown: number;
   hurtCooldown: number;
   maxHealth: number;
+  torchIntensity: number;
+  torchRadius: number;
 }
 export type PlayerAnimationType =
   | 'idle'
@@ -48,15 +51,22 @@ export class Player {
     powerAttackCooldown: 1500,
     hurtCooldown: 1500,
     maxHealth: 100,
+    torchIntensity: 1,
+    torchRadius: 250,
   };
   dimensions: { w: number; h: number; sx: number; sy: number };
   animations: Partial<Record<PlayerAnimationType, Animations.Animation | false>>;
   speed: number = 0;
   health = this.config.maxHealth;
   ui: { healthBar: GameObjects.Graphics };
-  flags: { isHurting: boolean; isDead: boolean } = { isHurting: false, isDead: false };
+  flags: { isHurting: string | false; isDead: boolean; lightState: 'on' | 'off' | false } = {
+    isHurting: false,
+    isDead: false,
+    lightState: false,
+  };
   private standingBody: MatterJS.BodyType;
   private standingSensors: { left: MatterJS.BodyType; right: MatterJS.BodyType; bottom: MatterJS.BodyType };
+  torch: AnimatedLight;
 
   get x(): number {
     return this.controller.sprite.x;
@@ -77,13 +87,22 @@ export class Player {
     this.setAnimations();
     this.setHandlers();
     this.setUI();
+    this.setLight();
 
     (this.controller.sprite as any).isDestroyable = () => false;
     this.controller.sprite.setScale(1.5, 1.5);
   }
 
+  private setLight() {
+    this.torch = new AnimatedLight(
+      this.game,
+      this.game.lights.addLight(this.x, this.y, this.config.torchRadius).setColor(0xffffff).setIntensity(0),
+      { radius: this.config.torchRadius, intensity: this.config.torchIntensity },
+    );
+  }
   private setController() {
     const sprite = this.game.matter.add.sprite(0, 0, 'neko');
+    sprite.setPipeline('Light2D');
 
     const w = sprite.width;
     const h = sprite.height;
@@ -416,8 +435,8 @@ export class Player {
       this.controller.lastPowerAttackAt = time;
     }
   }
-  private hurt(direction: number) {
-    this.flags.isHurting = true;
+  private hurt(direction: number, by: string) {
+    this.flags.isHurting = by;
     this.controller.sprite.setVelocity(direction * 2, -3);
     this.direction = direction * -1;
     this.controller.sprite.anims
@@ -432,13 +451,15 @@ export class Player {
   }
 
   private beforeUpdate(delta: number, time: number) {
+    this.torch.source.x = this.x;
+    this.torch.source.y = this.y - this.controller.sprite.height / 2;
+
     if (this.y > this.game.map.heightInPixels) {
-      this.hit(Infinity, this.direction);
+      this.hit(Infinity, this.direction, 'bounds');
     }
     this.applyInputs(delta, time, InputManager.input);
     this.animate(InputManager.input);
     this.updateUI();
-    // this.playSounds();
 
     this.controller.numTouchingSurfaces.left = 0;
     this.controller.numTouchingSurfaces.right = 0;
@@ -462,6 +483,7 @@ export class Player {
             this.hit(
               this.game.objects.belches[belchGO.name]!.config.power,
               this.game.objects.belches[belchGO.name]!.sprite.flipX ? -1 : 1,
+              belch!.sprite.name,
             );
           }
         }
@@ -485,12 +507,14 @@ export class Player {
     this.controller.blocked.bottom = this.controller.numTouchingSurfaces.bottom > 0 ? true : false;
   }
 
-  hit(damage: number, direction: number) {
+  hit(damage: number, direction: number, by: string) {
+    if (this.flags.isHurting === by) return;
+
     this.health = clampLow(this.health - damage, 0);
     if (this.health === 0) {
       this.die();
     } else {
-      this.hurt(direction);
+      this.hurt(direction, by);
     }
   }
 }

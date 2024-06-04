@@ -1,11 +1,15 @@
 import { Animations, Physics, Types } from 'phaser';
 import { Game } from '../scenes/game';
 import { luid } from '../utils';
+import { AnimatedLight } from '../helpers/animated-light';
 
 export type FireballAnimationType = 'move' | 'explode';
 export interface FireballConfig {
   speed: number;
   power: number;
+  lightRadius: number;
+  lightIntensity: number;
+  lightColor: number;
 }
 
 export class Fireball {
@@ -13,8 +17,9 @@ export class Fireball {
   sprite: Physics.Matter.Sprite;
   body: MatterJS.BodyType;
   animations: Record<FireballAnimationType, Animations.Animation | false>;
-  config: FireballConfig = { speed: 6.5, power: 0 };
+  config: FireballConfig = { speed: 6.5, power: 0, lightRadius: 75, lightIntensity: 1.5, lightColor: 0xffe808 };
   isDestroyed = false;
+  light: AnimatedLight;
 
   get direction(): number {
     return this.sprite.flipX ? -1 : 1;
@@ -33,14 +38,29 @@ export class Fireball {
     this.setPhysics();
     this.setAnimations();
     this.setHandlers();
+    this.setLight();
 
     this.sprite.anims.play('move', true);
 
     this.game.objects.fireballs[this.id] = this;
   }
 
+  private setLight() {
+    this.light = new AnimatedLight(
+      this.game,
+      this.game.lights.addLight(
+        this.sprite.x,
+        this.sprite.y,
+        this.config.lightRadius,
+        this.config.lightColor,
+        this.game.lightState ? 0 : this.config.lightIntensity,
+      ),
+      { radius: this.config.lightRadius, intensity: this.config.lightIntensity },
+    );
+  }
   private setSprite() {
     this.sprite = this.game.matter.add.sprite(0, 0, 'fireball');
+    this.sprite.setPipeline('Light2D');
     this.sprite.name = this.id;
 
     const w = this.sprite.width;
@@ -92,10 +112,19 @@ export class Fireball {
   }
   private setHandlers() {
     this.sprite.setVelocityX(this.direction * this.config.speed);
+    this.game.matter.world.on(Physics.Matter.Events.BEFORE_UPDATE, (event: { delta: number; timestamp: number }) =>
+      this.beforeUpdate(event.delta, event.timestamp),
+    );
     this.game.matter.world.on(
       Physics.Matter.Events.COLLISION_ACTIVE,
       (event: { pairs: Types.Physics.Matter.MatterCollisionPair[] }) => this.onCollide(event),
     );
+  }
+  private beforeUpdate(_delta: number, _time: number) {
+    if (this.isDestroyed) return;
+
+    this.light.source.x = this.sprite.x;
+    this.light.source.y = this.sprite.y;
   }
   private onCollide(event: { pairs: Types.Physics.Matter.MatterCollisionPair[] }) {
     if (this.isDestroyed) return;
@@ -117,6 +146,7 @@ export class Fireball {
 
   private explode() {
     this.isDestroyed = true;
+    this.game.lights.removeLight(this.light.source);
     this.sprite.setVelocityX(0);
     this.sprite.anims.play('explode', true).once(Animations.Events.ANIMATION_COMPLETE, () => this.destroy());
     return;
