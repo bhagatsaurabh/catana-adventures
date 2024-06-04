@@ -76,10 +76,15 @@ export class DemonFlower {
   private setPhysics() {
     const h = this.sprite.height;
 
-    this.body = this.game.matter.bodies.circle(20, 20, h / 2.5, { isStatic: true, restitution: 0.05, friction: 0 });
+    this.body = this.game.matter.bodies.circle(20, 20, h / 2.5, {
+      isStatic: true,
+      isSensor: true,
+      restitution: 0.05,
+      friction: 0,
+    });
 
     this.sprite.setExistingBody(this.body).setPosition(this.pos.x, this.pos.y).setFixedRotation();
-    this.game.matter.body.setCentre(this.body, { x: 2, y: -7 }, true);
+    this.game.matter.body.setCentre(this.body, { x: 2, y: -6 }, true);
   }
   private setAnimations() {
     const idle = this.sprite.anims.create({

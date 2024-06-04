@@ -1,4 +1,4 @@
-import { Cameras, Display, GameObjects, Scene, Tilemaps, Tweens } from 'phaser';
+import { Cameras, Display, GameObjects, Input, Scene, Tilemaps, Tweens, Types } from 'phaser';
 import { Player } from '../models/player';
 import { InputManager } from '../helpers/input-manager';
 import { choose, clamp, rand } from '../utils';
@@ -6,8 +6,8 @@ import { Chomper } from '../models/chomper';
 import { Fireball } from '../models/fireball';
 import { Belch } from '../models/belch';
 import { DemonFlower } from '../models/demon-flower';
-import { FlyFly } from '../models/flyfly';
 import { Skeleton } from '../models/skeleton';
+import { FlyFly } from '../models/flyfly';
 
 export class Game extends Scene {
   camera: Cameras.Scene2D.Camera;
@@ -17,9 +17,14 @@ export class Game extends Scene {
   handles: { fps: number } = { fps: -1 };
   clouds: { gameObject: GameObjects.Image; direction: -1 | 1; speed: number }[] = [];
   background: { layer0: GameObjects.TileSprite; layer1: GameObjects.TileSprite };
-  objects: { fireballs: Partial<Record<string, Fireball>>; belches: Partial<Record<string, Belch>> } = {
+  objects: {
+    fireballs: Partial<Record<string, Fireball>>;
+    belches: Partial<Record<string, Belch>>;
+    skulls: Partial<Record<string, Skeleton>>;
+  } = {
     fireballs: {},
     belches: {},
+    skulls: {},
   };
   raycasterPlugin: PhaserRaycaster;
   raycaster: Raycaster;
@@ -32,8 +37,9 @@ export class Game extends Scene {
   }
 
   create() {
-    this.input.once('pointerdown', () => {
-      this.scene.start('gameover');
+    this.input.on('pointerdown', (pointer: Input.Pointer) => {
+      console.log(pointer.worldX, pointer.worldY);
+      // this.scene.start('gameover');
     });
 
     this.raycaster = this.raycasterPlugin.createRaycaster({ debug: true });
@@ -116,10 +122,11 @@ export class Game extends Scene {
     }
   }
   private createMonsters() {
-    new Chomper(this, { x: 900, y: this.map.heightInPixels - 120 });
-    new DemonFlower(this, { x: 784, y: this.map.heightInPixels - 144 });
-    new FlyFly(this, { x: 600, y: this.map.heightInPixels - 200 });
-    new Skeleton(this, { x: 320, y: this.map.heightInPixels - 400 });
+    const monsters = this.cache.json.get('monsters-1-1');
+    monsters.chompers.forEach((chomper: Types.Math.Vector2Like) => new Chomper(this, { x: chomper.x, y: chomper.y }));
+    monsters.flowers.forEach((dmnflr: Types.Math.Vector2Like) => new DemonFlower(this, { x: dmnflr.x, y: dmnflr.y }));
+    monsters.skeletons.forEach((skltn: Types.Math.Vector2Like) => new Skeleton(this, { x: skltn.x, y: skltn.y }));
+    monsters.flyflys.forEach((flyfly: Types.Math.Vector2Like) => new FlyFly(this, { x: flyfly.x, y: flyfly.y }));
   }
   private setTweens() {
     this.ambientTweens = {
@@ -217,6 +224,8 @@ export class Game extends Scene {
   }
 
   lightsOn() {
+    if (this.lightState || Object.values(this.objects.skulls).length) return;
+
     this.ambientTweens.on.play();
     this.cameraTweens.on.play();
     this.player.torch.off();
@@ -225,6 +234,8 @@ export class Game extends Scene {
     this.lightState = true;
   }
   lightsOff() {
+    if (!this.lightState) return;
+
     this.ambientTweens.off.play();
     this.cameraTweens.off.play();
     this.player.torch.on();
