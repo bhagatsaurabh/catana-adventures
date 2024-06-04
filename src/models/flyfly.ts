@@ -1,6 +1,6 @@
 import { Animations, GameObjects, Geom, Math as M, Physics, Types } from 'phaser';
 import { Game } from '../scenes/game';
-import { denormalize, normalize, rand, randRadial } from '../utils';
+import { denormalize, luid, normalize, rand, randRadial } from '../utils';
 import { Fireball } from './fireball';
 
 export type FlyFlyAnimationType = 'idle' | 'bite' | 'die';
@@ -16,6 +16,7 @@ export interface FlyFlyConfig {
 export type FlyFlyState = 'roam' | 'chase' | 'attack';
 
 export class FlyFly {
+  id: string;
   config: FlyFlyConfig = {
     speed: 1.5,
     attackPower: () => rand(6, 12),
@@ -85,6 +86,7 @@ export class FlyFly {
     public game: Game,
     public pos: Types.Math.Vector2Like,
   ) {
+    this.id = luid();
     this.origin = { x: pos.x, y: pos.y };
     this.nextWaypoint = { x: pos.x, y: pos.y };
     this.setSprite();
@@ -100,6 +102,8 @@ export class FlyFly {
 
   private setSprite() {
     this.sprite = this.game.matter.add.sprite(0, 0, 'flyfly');
+    this.sprite.setPipeline('Light2D');
+    this.sprite.name = `flyfly-${this.id}`;
   }
   private setPhysics() {
     const w = this.sprite.width;
@@ -351,7 +355,7 @@ export class FlyFly {
     this.state = 'attack';
 
     this.sprite.anims.play('bite', true).once(Animations.Events.ANIMATION_COMPLETE, () => (this.state = 'roam'));
-    this.game.player.hit(this.config.attackPower(), this.direction);
+    this.game.player.hit(this.config.attackPower(), this.direction, this.sprite.name);
   }
   hit(fireball?: Fireball) {
     if (!fireball) return;
@@ -364,6 +368,8 @@ export class FlyFly {
   private die() {
     if (this.flags.isDead) return;
 
+    this.ray.destroy();
+    this.sprite.setVelocity(0);
     (this.sprite.body as MatterJS.BodyType).isSensor = true;
     this.flags.isDead = true;
     this.sprite.anims.play('die').once(Animations.Events.ANIMATION_COMPLETE, () => this.destroy());

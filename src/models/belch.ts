@@ -1,11 +1,15 @@
 import { Animations, Physics, Types } from 'phaser';
 import { Game } from '../scenes/game';
 import { luid } from '../utils';
+import { AnimatedLight } from '../helpers/animated-light';
 
 export type BelchAnimationType = 'move' | 'explode';
 export interface BelchConfig {
   speed: number;
   power: number;
+  lightRadius: number;
+  lightIntensity: number;
+  lightColor: number;
 }
 
 export class Belch {
@@ -13,8 +17,9 @@ export class Belch {
   sprite: Physics.Matter.Sprite;
   body: MatterJS.BodyType;
   animations: Record<BelchAnimationType, Animations.Animation | false>;
-  config: BelchConfig = { speed: 7.5, power: 0 };
+  config: BelchConfig = { speed: 7.5, power: 0, lightRadius: 50, lightIntensity: 1.25, lightColor: 0xafe1af };
   isDestroyed = false;
+  light: AnimatedLight;
 
   constructor(
     public game: Game,
@@ -28,6 +33,7 @@ export class Belch {
     this.setPhysics(pos);
     this.setAnimations();
     this.setHandlers();
+    this.setLight();
 
     (this.sprite as any).isDestroyable = (body: MatterJS.BodyType) => body === this.body;
     this.sprite.anims.play('move', true);
@@ -35,8 +41,22 @@ export class Belch {
     this.game.objects.belches[this.id] = this;
   }
 
+  private setLight() {
+    this.light = new AnimatedLight(
+      this.game,
+      this.game.lights.addLight(
+        this.sprite.x,
+        this.sprite.y,
+        this.config.lightRadius,
+        this.config.lightColor,
+        this.game.lightState ? 0 : this.config.lightIntensity,
+      ),
+      { radius: this.config.lightRadius, intensity: this.config.lightIntensity },
+    );
+  }
   private setSprite() {
     this.sprite = this.game.matter.add.sprite(0, 0, 'belch');
+    this.sprite.setPipeline('Light2D');
     this.sprite.name = this.id;
 
     const w = this.sprite.width;
@@ -79,10 +99,19 @@ export class Belch {
   }
   private setHandlers() {
     this.sprite.setVelocityX(this.sprite.flipX ? -this.config.speed : this.config.speed);
+    this.game.matter.world.on(Physics.Matter.Events.BEFORE_UPDATE, (event: { delta: number; timestamp: number }) =>
+      this.beforeUpdate(event.delta, event.timestamp),
+    );
     this.game.matter.world.on(
       Physics.Matter.Events.COLLISION_ACTIVE,
       (event: { pairs: Types.Physics.Matter.MatterCollisionPair[] }) => this.onCollide(event),
     );
+  }
+  private beforeUpdate(_delta: number, _time: number) {
+    if (this.isDestroyed) return;
+
+    this.light.source.x = this.sprite.x;
+    this.light.source.y = this.sprite.y;
   }
   private onCollide(event: { pairs: Types.Physics.Matter.MatterCollisionPair[] }) {
     if (this.isDestroyed) return;
@@ -104,6 +133,7 @@ export class Belch {
 
   private explode() {
     this.isDestroyed = true;
+    this.game.lights.removeLight(this.light.source);
     this.sprite.setVelocityX(0);
     this.sprite.anims.play('explode', true).once(Animations.Events.ANIMATION_COMPLETE, () => this.destroy());
     return;

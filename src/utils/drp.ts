@@ -1,15 +1,21 @@
+import { rand } from '.';
 import { PI2 } from './constants';
 
 export class DeterministicRandomPath {
+  rpsC: { x: number; y: number };
+  rpsP: { x: number; y: number };
+  rps: { x: number; y: number };
+
   constructor(
-    public center = { x: 100, y: 100 },
-    public rpsC = { x: 0.43, y: 0.47 },
-    public rpsP = { x: 0.093, y: 0.097 },
-    public rps = { x: 1, y: 0.8 },
-    public distC = 20,
-    public distP = 30,
-    public dist = 30,
-  ) {}
+    public center: { x: number; y: number },
+    public distC: number,
+    public distP: number,
+    public dist: number,
+  ) {
+    this.rpsC = { x: rand(0.1, 0.15), y: rand(0.1, 0.15) };
+    this.rpsP = { x: rand(0.02, 0.024), y: rand(0.02, 0.024) };
+    this.rps = { x: rand(0.22, 0.25), y: rand(0.22, 0.25) };
+  }
 
   movePoints(time: number) {
     let phaseX = (time / 1000) * PI2 * this.rpsC.x;

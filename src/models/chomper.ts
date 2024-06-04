@@ -1,6 +1,6 @@
 import { Animations, GameObjects, Math as M, Physics, Types } from 'phaser';
 import { Game } from '../scenes/game';
-import { clampLow, denormalize, normalize, rand } from '../utils';
+import { clampLow, denormalize, luid, normalize, rand } from '../utils';
 import { Fireball } from './fireball';
 
 export type ChomperAnimationType = 'idle' | 'move' | 'bite' | 'hurt' | 'die';
@@ -17,6 +17,7 @@ export interface ChomperConfig {
 export type ChomperState = 'roam' | 'chase' | 'attack';
 
 export class Chomper {
+  id: string;
   config: ChomperConfig = {
     speed: 2,
     attackPower: () => rand(6, 12),
@@ -70,6 +71,7 @@ export class Chomper {
     public game: Game,
     public pos: Types.Math.Vector2Like,
   ) {
+    this.id = luid();
     this.setSprite();
     this.setPhysics();
     this.setAnimations();
@@ -82,6 +84,8 @@ export class Chomper {
 
   private setSprite() {
     this.sprite = this.game.matter.add.sprite(0, 0, 'chomper');
+    this.sprite.setPipeline('Light2D');
+    this.sprite.name = `chomper-${this.id}`;
   }
   private setPhysics() {
     const w = this.sprite.width;
@@ -293,7 +297,7 @@ export class Chomper {
     this.state = 'attack';
 
     this.sprite.anims.play('bite', true).once(Animations.Events.ANIMATION_COMPLETE, () => (this.state = 'roam'));
-    this.game.player.hit(this.config.attackPower(), this.direction);
+    this.game.player.hit(this.config.attackPower(), this.direction, this.sprite.name);
   }
   hit(fireball?: Fireball) {
     if (!fireball) return;
