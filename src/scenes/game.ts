@@ -8,6 +8,8 @@ import { Belch } from '../models/belch';
 import { DemonFlower } from '../models/demon-flower';
 import { Skeleton } from '../models/skeleton';
 import { FlyFly } from '../models/flyfly';
+import { Coin } from '../models/coin';
+import { ScoreKeeper } from '../helpers/score-keeper';
 
 export class Game extends Scene {
   camera: Cameras.Scene2D.Camera;
@@ -31,6 +33,7 @@ export class Game extends Scene {
   ambientTweens: { on: Tweens.Tween; off: Tweens.Tween };
   cameraTweens: { on: Tweens.Tween; off: Tweens.Tween };
   lightState = true;
+  scoreKeeper: ScoreKeeper;
 
   constructor() {
     super('game');
@@ -52,8 +55,11 @@ export class Game extends Scene {
     this.setClouds();
     this.setParallaxBackground();
     this.createMonsters();
+    this.createCoins();
     this.lights.enable().setAmbientColor(0xffffff);
     this.setTweens();
+    this.createExitSensors();
+    this.scoreKeeper = new ScoreKeeper();
   }
 
   private setPhysics() {
@@ -128,6 +134,13 @@ export class Game extends Scene {
     monsters.skeletons.forEach((skltn: Types.Math.Vector2Like) => new Skeleton(this, { x: skltn.x, y: skltn.y }));
     monsters.flyflys.forEach((flyfly: Types.Math.Vector2Like) => new FlyFly(this, { x: flyfly.x, y: flyfly.y }));
   }
+  private createCoins() {
+    const coins = this.cache.json.get('coins-1-1');
+    coins.forEach(
+      (coin: { x: number; y: number; type: 'gold' | 'silver' | 'bronze' }) =>
+        new Coin(this, { x: coin.x, y: coin.y }, coin.type),
+    );
+  }
   private setTweens() {
     this.ambientTweens = {
       on: this.tweens.addCounter({
@@ -186,6 +199,11 @@ export class Game extends Scene {
         },
       }),
     };
+  }
+  private createExitSensors() {
+    this.matter.add.rectangle(9472, 332, 5, 636, { isStatic: true, isSensor: true }).onCollideActiveCallback = (
+      pair: MatterJS.Pair,
+    ) => console.log(pair);
   }
 
   update(_time: number, _delta: number) {
