@@ -4,17 +4,28 @@ export class ScoreKeeper {
 
   monsterKilled(
     type: 'chomper' | 'demon-flower' | 'flyfly' | 'skeleton',
-    noOfPowerAttacks: number,
-    noOfFastAttacks: number,
+    stats: { noOfPowerAttacks: number; noOfFastAttacks: number },
   ) {
     if (type === 'chomper') {
-      this.score += 25 + Math.round(10 / noOfPowerAttacks) + Math.round(20 / noOfFastAttacks);
+      this.score +=
+        25 +
+        (stats.noOfPowerAttacks ? Math.round(10 / stats.noOfPowerAttacks) : 0) +
+        (stats.noOfFastAttacks ? Math.round(20 / stats.noOfFastAttacks) : 0);
     } else if (type === 'demon-flower') {
-      this.score += 55 + Math.round(20 / noOfPowerAttacks) + Math.round(40 / noOfFastAttacks);
+      this.score +=
+        55 +
+        (stats.noOfPowerAttacks ? Math.round(20 / stats.noOfPowerAttacks) : 0) +
+        (stats.noOfFastAttacks ? Math.round(40 / stats.noOfFastAttacks) : 0);
     } else if (type == 'flyfly') {
-      this.score += 15 + Math.round(5 / noOfPowerAttacks) + Math.round(10 / noOfFastAttacks);
+      this.score +=
+        15 +
+        (stats.noOfPowerAttacks ? Math.round(5 / stats.noOfPowerAttacks) : 0) +
+        (stats.noOfFastAttacks ? Math.round(10 / stats.noOfFastAttacks) : 0);
     } else if (type === 'skeleton') {
-      this.score += 70 + Math.round(30 / noOfPowerAttacks) + Math.round(50 / noOfFastAttacks);
+      this.score +=
+        70 +
+        (stats.noOfPowerAttacks ? Math.round(30 / stats.noOfPowerAttacks) : 0) +
+        (stats.noOfFastAttacks ? Math.round(50 / stats.noOfFastAttacks) : 0);
     }
   }
   levelCompleted(time: number) {

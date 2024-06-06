@@ -1,4 +1,4 @@
-import { Cameras, Display, GameObjects, Input, Scene, Tilemaps, Tweens, Types } from 'phaser';
+import { Cameras, Display, GameObjects, Scene, Tilemaps, Tweens, Types } from 'phaser';
 import { Player } from '../models/player';
 import { InputManager } from '../helpers/input-manager';
 import { choose, clamp, rand } from '../utils';
@@ -15,7 +15,7 @@ export class Game extends Scene {
   camera: Cameras.Scene2D.Camera;
   player: Player;
   map: Tilemaps.Tilemap;
-  ui: { fps?: GameObjects.Text } = {};
+  ui: { fps?: GameObjects.Text; score?: GameObjects.Text } = {};
   handles: { fps: number } = { fps: -1 };
   clouds: { gameObject: GameObjects.Image; direction: -1 | 1; speed: number }[] = [];
   background: { layer0: GameObjects.TileSprite; layer1: GameObjects.TileSprite };
@@ -34,24 +34,24 @@ export class Game extends Scene {
   cameraTweens: { on: Tweens.Tween; off: Tweens.Tween };
   lightState = true;
   scoreKeeper: ScoreKeeper;
+  flags: { isExiting: boolean; isOver: boolean } = { isExiting: false, isOver: false };
 
   constructor() {
     super('game');
   }
 
   create() {
-    this.input.on('pointerdown', (pointer: Input.Pointer) => {
+    /* this.input.on('pointerdown', (pointer: Input.Pointer) => {
       console.log(pointer.worldX, pointer.worldY);
-      // this.scene.start('gameover');
-    });
+    }); */
 
     this.raycaster = this.raycasterPlugin.createRaycaster({ debug: true });
     this.setMap();
     this.setPhysics();
-    this.player = new Player(this);
+    this.player = new Player(this, { x: 32, y: 800 });
+    // this.player = new Player(this, { x: 9300, y: 600 });
     this.setCamera();
     InputManager.setup();
-    this.setUI();
     this.setClouds();
     this.setParallaxBackground();
     this.createMonsters();
@@ -60,6 +60,7 @@ export class Game extends Scene {
     this.setTweens();
     this.createExitSensors();
     this.scoreKeeper = new ScoreKeeper();
+    this.setUI();
   }
 
   private setPhysics() {
@@ -88,10 +89,17 @@ export class Game extends Scene {
       color: '#ffffff',
     });
     this.ui.fps.setScrollFactor(0);
-
     this.handles.fps = setInterval(() => {
       this.ui.fps!.text = `FPS: ${this.game.loop.actualFps.toFixed(1)}`;
     }, 500) as unknown as number;
+
+    this.ui.score = this.add.text(816, 16, `Score: ${this.scoreKeeper.score.toString().padStart(6, ' ')}`, {
+      fontSize: '20px',
+      padding: { x: 20, y: 10 },
+      backgroundColor: '#000000',
+      color: '#ffffff',
+    });
+    this.ui.score.setScrollFactor(0);
   }
   private setParallaxBackground() {
     const bgSource1 = this.textures.get('bg-forest-1').getSourceImage();
@@ -148,6 +156,7 @@ export class Game extends Scene {
         to: 255,
         duration: 1000,
         paused: true,
+        persist: true,
         onUpdate: (tween) => {
           const value = Math.floor(tween.getValue());
           this.lights.setAmbientColor(Phaser.Display.Color.GetColor(value, value, value));
@@ -158,6 +167,7 @@ export class Game extends Scene {
         to: 16,
         duration: 1000,
         paused: true,
+        persist: true,
         onUpdate: (tween) => {
           const value = Math.floor(tween.getValue());
           this.lights.setAmbientColor(Phaser.Display.Color.GetColor(value, value, value));
@@ -171,6 +181,7 @@ export class Game extends Scene {
         to: 100,
         duration: 1000,
         paused: true,
+        persist: true,
         onUpdate: (tween) => {
           this.camera.setBackgroundColor(
             Display.Color.Interpolate.ColorWithColor(
@@ -187,6 +198,7 @@ export class Game extends Scene {
         to: 100,
         duration: 1000,
         paused: true,
+        persist: true,
         onUpdate: (tween) => {
           this.camera.setBackgroundColor(
             Display.Color.Interpolate.ColorWithColor(
@@ -201,12 +213,35 @@ export class Game extends Scene {
     };
   }
   private createExitSensors() {
-    this.matter.add.rectangle(9472, 332, 5, 636, { isStatic: true, isSensor: true }).onCollideActiveCallback = (
-      pair: MatterJS.Pair,
-    ) => console.log(pair);
-  }
+    const exitSensor = this.matter.add.rectangle(9472, 332, 5, 636, { isStatic: true, isSensor: true });
+    exitSensor.onCollideCallback = (pair: Types.Physics.Matter.MatterCollisionPair) => {
+      if (
+        !this.flags.isExiting &&
+        ((pair.bodyA === exitSensor && pair.bodyB.gameObject?.name === 'neko') ||
+          (pair.bodyB === exitSensor && pair.bodyA.gameObject?.name === 'neko'))
+      ) {
+        this.flags.isExiting = true;
+        this.player.exit();
+      }
+    };
 
+    const overSensor = this.matter.add.rectangle(9588, 332, 5, 636, { isStatic: true, isSensor: true });
+    overSensor.onCollideCallback = (pair: Types.Physics.Matter.MatterCollisionPair) => {
+      if (
+        this.flags.isExiting &&
+        ((pair.bodyA === overSensor && pair.bodyB.gameObject?.name === 'neko') ||
+          (pair.bodyB === overSensor && pair.bodyA.gameObject?.name === 'neko'))
+      ) {
+        this.flags.isExiting = false;
+        this.over(pair.timeUpdated);
+      }
+    };
+  }
   update(_time: number, _delta: number) {
+    if (this.flags.isExiting) {
+      this.player.controller.sprite.setVelocityX(this.player.config.maxRunSpeed);
+    }
+
     const sprite = this.player.controller.sprite;
     if (!sprite) {
       return;
@@ -230,6 +265,8 @@ export class Game extends Scene {
 
     this.background.layer0.x = clamp(this.camera.scrollX, 0, Infinity);
     this.background.layer1.x = clamp(this.camera.scrollX, 0, Infinity);
+
+    this.ui.score!.text = `Score: ${this.scoreKeeper.score.toString().padStart(6, ' ')}`;
   }
   smoothMoveCameraTowards(target: Player, smoothFactor = 0) {
     this.camera.scrollX = clamp(
@@ -260,5 +297,12 @@ export class Game extends Scene {
     Object.values(this.objects.fireballs).forEach((fireball) => fireball?.light.on());
     Object.values(this.objects.belches).forEach((belch) => belch?.light.on());
     this.lightState = false;
+  }
+
+  over(time: number) {
+    this.scoreKeeper.levelCompleted(time);
+    clearInterval(this.handles.fps);
+    this.flags.isOver = true;
+    this.scene.start('gameover');
   }
 }

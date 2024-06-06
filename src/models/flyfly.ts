@@ -1,36 +1,24 @@
-import { Animations, GameObjects, Geom, Math as M, Physics, Types } from 'phaser';
+import { Animations, GameObjects, Geom, Math as M, Types } from 'phaser';
 import { Game } from '../scenes/game';
-import { denormalize, luid, normalize, rand, randRadial } from '../utils';
+import { rand, randRadial } from '../utils';
 import { Fireball } from './fireball';
+import { Monster, MonsterFlags } from './monster';
 
 export type FlyFlyAnimationType = 'idle' | 'bite' | 'die';
 export interface FlyFlyConfig {
+  maxHealth: number;
   speed: number;
   attackPower: () => number;
   chaseDistance: number;
   attackDistance: number;
-  maxHealth: number;
   territoryRadius: number;
   waypointThreshold: number;
 }
 export type FlyFlyState = 'roam' | 'chase' | 'attack';
+export interface FlyFlyFlags extends MonsterFlags {}
 
-export class FlyFly {
-  id: string;
-  config: FlyFlyConfig = {
-    speed: 1.5,
-    attackPower: () => rand(6, 12),
-    chaseDistance: 175,
-    attackDistance: 45,
-    maxHealth: 20,
-    territoryRadius: 300,
-    waypointThreshold: 3,
-  };
-  sprite: Physics.Matter.Sprite;
-  body: MatterJS.BodyType;
-  animations: Record<FlyFlyAnimationType, Animations.Animation | false>;
-  flags: { isDead: boolean; isDestroyed: boolean } = { isDead: false, isDestroyed: false };
-  controller: {
+export class FlyFly extends Monster<FlyFlyConfig, FlyFlyState, FlyFlyFlags, FlyFlyAnimationType> {
+  declare controller: {
     sensors: {
       topLeft: MatterJS.BodyType;
       top: MatterJS.BodyType;
@@ -62,19 +50,10 @@ export class FlyFly {
       bottom: boolean;
     };
   };
-  health = this.config.maxHealth;
-  state: FlyFlyState = 'roam';
-  ui: { healthBar: GameObjects.Graphics };
   ray: Raycaster.Ray;
   intersections: Geom.Point[];
   origin: Types.Math.Vector2Like;
   nextWaypoint: Types.Math.Vector2Like = { x: 0, y: 0 };
-  get direction(): number {
-    return this.sprite.flipX ? -1 : 1;
-  }
-  set direction(value: number) {
-    this.sprite.flipX = value === -1;
-  }
   get x(): number {
     return this.sprite.x;
   }
@@ -82,30 +61,30 @@ export class FlyFly {
     return this.sprite.y;
   }
 
-  constructor(
-    public game: Game,
-    public pos: Types.Math.Vector2Like,
-  ) {
-    this.id = luid();
+  constructor(game: Game, pos: Types.Math.Vector2Like) {
+    super(
+      game,
+      'flyfly',
+      pos,
+      'roam',
+      {
+        speed: 1.5,
+        attackPower: () => rand(6, 12),
+        chaseDistance: 175,
+        attackDistance: 45,
+        maxHealth: 20,
+        territoryRadius: 300,
+        waypointThreshold: 3,
+      },
+      'idle',
+    );
+
+    this.setVision();
     this.origin = { x: pos.x, y: pos.y };
     this.nextWaypoint = { x: pos.x, y: pos.y };
-    this.setSprite();
-    this.setPhysics();
-    this.setAnimations();
-    this.setHandlers();
-    this.setUI();
-    this.setVision();
-
-    (this.sprite as any).isDestroyable = (body: MatterJS.BodyType) => body === this.body;
-    this.sprite.anims.play('idle');
   }
 
-  private setSprite() {
-    this.sprite = this.game.matter.add.sprite(0, 0, 'flyfly');
-    this.sprite.setPipeline('Light2D');
-    this.sprite.name = `flyfly-${this.id}`;
-  }
-  private setPhysics() {
+  setPhysics() {
     const w = this.sprite.width;
     this.controller = {
       sensors: {
@@ -161,9 +140,9 @@ export class FlyFly {
       ignoreGravity: true,
     });
 
-    this.sprite.setExistingBody(compoundBody).setPosition(this.pos.x, this.pos.y).setFixedRotation();
+    this.sprite.setExistingBody(compoundBody).setPosition(this.spawnPos.x, this.spawnPos.y).setFixedRotation();
   }
-  private setAnimations() {
+  setAnimations() {
     const idle = this.sprite.anims.create({
       key: 'idle',
       frames: this.sprite.anims.generateFrameNumbers('flyfly', { start: 0, end: 4 }),
@@ -189,34 +168,6 @@ export class FlyFly {
       die,
     };
   }
-  private setHandlers() {
-    this.game.matter.world.on(Physics.Matter.Events.BEFORE_UPDATE, (event: { delta: number; timestamp: number }) =>
-      this.beforeUpdate(event.delta, event.timestamp),
-    );
-    this.game.matter.world.on(
-      Physics.Matter.Events.COLLISION_ACTIVE,
-      (event: { pairs: Types.Physics.Matter.MatterCollisionPair[] }) => this.collisionActive(event),
-    );
-    this.game.matter.world.on(Physics.Matter.Events.AFTER_UPDATE, (event: { delta: number; timestamp: number }) =>
-      this.afterUpdate(event.delta, event.timestamp),
-    );
-  }
-  private setUI() {
-    const healthBar = this.game.add.graphics();
-    this.ui = { healthBar };
-  }
-  private updateUI() {
-    if (this.flags.isDestroyed) return;
-
-    this.ui.healthBar.x = this.sprite.x - 15;
-    this.ui.healthBar.y = this.sprite.y - this.sprite.height / 2;
-    this.ui.healthBar.clear();
-    this.ui.healthBar.lineStyle(1, 0xffffff);
-    this.ui.healthBar.strokeRect(0, 0, 30, 4);
-    const normHealth = normalize(this.health, 0, this.config.maxHealth);
-    this.ui.healthBar.fillStyle(normHealth >= 0.75 ? 0x00ff00 : normHealth >= 0.25 ? 0xffff00 : 0xff0000);
-    this.ui.healthBar.fillRect(1, 1, denormalize(normalize(this.health, 0, this.config.maxHealth), 0, 28), 2);
-  }
   private setVision() {
     this.ray = this.game.raycaster.createRay({
       origin: {
@@ -238,13 +189,12 @@ export class FlyFly {
     this.intersections = this.ray.castCircle();
   }
 
-  private beforeUpdate(_delta: number, time: number) {
+  beforeUpdate(_delta: number, time: number) {
     if (this.flags.isDead) return;
 
     this.updateVision();
-    this.updateUI();
 
-    if (this.intersections.find((point: any) => point?.object?.texture?.key === 'neko')) {
+    if (this.intersections.find((point: any) => point?.object?.name?.includes('neko'))) {
       this.state = 'chase';
     } else {
       this.state = 'roam';
@@ -261,7 +211,7 @@ export class FlyFly {
     this.controller.numOfTouchingSurfaces.topLeft = 0;
     this.controller.numOfTouchingSurfaces.topRight = 0;
   }
-  private collisionActive(event: { pairs: Types.Physics.Matter.MatterCollisionPair[] }) {
+  collisionActive(event: { pairs: Types.Physics.Matter.MatterCollisionPair[]; timestamp: number }) {
     if (this.flags.isDead) return;
 
     const left = this.controller.sensors.left;
@@ -280,11 +230,11 @@ export class FlyFly {
       if (bodyA === this.body || bodyB === this.body) {
         if (bodyA.gameObject === player || bodyB.gameObject === player) {
           this.attack();
-        } else if (bodyA.gameObject?.texture?.key === 'fireball' || bodyB.gameObject?.texture?.key === 'fireball') {
+        } else if (bodyA.gameObject?.name?.includes('fireball') || bodyB.gameObject?.name?.includes('fireball')) {
           const fireballGO = (
-            bodyA.gameObject?.texture?.key === 'fireball' ? bodyA.gameObject : bodyB.gameObject
+            bodyA.gameObject?.name?.includes('fireball') ? bodyA.gameObject : bodyB.gameObject
           ) as GameObjects.GameObject;
-          this.hit(this.game.objects.fireballs[fireballGO.name]);
+          this.hit(event.timestamp, this.game.objects.fireballs[fireballGO.name]);
         }
         continue;
       } else if (bodyA === bottomLeft || bodyB === bottomLeft) {
@@ -306,7 +256,7 @@ export class FlyFly {
       }
     }
   }
-  private afterUpdate(_delta: number, _time: number) {
+  afterUpdate(_delta: number, _time: number) {
     if (this.flags.isDead) return;
 
     this.controller.blocked.right = this.controller.numOfTouchingSurfaces.right > 0 ? true : false;
@@ -357,26 +307,23 @@ export class FlyFly {
     this.sprite.anims.play('bite', true).once(Animations.Events.ANIMATION_COMPLETE, () => (this.state = 'roam'));
     this.game.player.hit(this.config.attackPower(), this.direction, this.sprite.name);
   }
-  hit(fireball?: Fireball) {
+  hit(_time: number, fireball?: Fireball) {
     if (!fireball) return;
 
+    this.stats[fireball.type === 'high' ? 'noOfPowerAttacks' : 'noOfFastAttacks'] += 1;
     this.direction = fireball.direction * -1;
 
     this.health = 0;
     this.die();
   }
-  private die() {
+  die() {
     if (this.flags.isDead) return;
 
     this.ray.destroy();
     this.sprite.setVelocity(0);
     (this.sprite.body as MatterJS.BodyType).isSensor = true;
     this.flags.isDead = true;
-    this.sprite.anims.play('die').once(Animations.Events.ANIMATION_COMPLETE, () => this.destroy());
+    this.sprite.anims.play('die').once(Animations.Events.ANIMATION_COMPLETE, () => this.dispose());
   }
-  destroy() {
-    this.flags.isDestroyed = true;
-    this.sprite.destroy();
-    this.ui.healthBar.destroy();
-  }
+  hurt() {}
 }

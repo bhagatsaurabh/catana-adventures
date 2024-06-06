@@ -42,7 +42,7 @@ export class Fireball {
 
     this.sprite.anims.play('move', true);
 
-    this.game.objects.fireballs[this.id] = this;
+    this.game.objects.fireballs[this.sprite.name] = this;
   }
 
   private setLight() {
@@ -61,7 +61,7 @@ export class Fireball {
   private setSprite() {
     this.sprite = this.game.matter.add.sprite(0, 0, 'fireball');
     this.sprite.setPipeline('Light2D');
-    this.sprite.name = this.id;
+    this.sprite.name = `fireball-${this.id}`;
 
     const w = this.sprite.width;
     const h = this.sprite.height;
@@ -153,7 +153,7 @@ export class Fireball {
   }
 
   destroy() {
-    delete this.game.objects.fireballs[this.id];
+    delete this.game.objects.fireballs[this.sprite.name];
     this.sprite.destroy();
   }
 }
