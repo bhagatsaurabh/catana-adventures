@@ -1,4 +1,5 @@
 import { Scene } from 'phaser';
+import { InputManager } from '../helpers/input-manager';
 
 export class Preloader extends Scene {
   constructor() {
@@ -41,6 +42,8 @@ export class Preloader extends Scene {
     //  For example, you can define global animations here, so we can use them in other scenes.
 
     //  Move to the MainMenu. You could also swap this for a Scene Transition, such as a camera fade.
+    InputManager.sceneChange(false);
+
     this.scene.start('mainmenu');
   }
 }

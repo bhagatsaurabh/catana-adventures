@@ -1,4 +1,5 @@
 import { Scene } from 'phaser';
+import { InputManager } from '../helpers/input-manager';
 
 export class Boot extends Scene {
   constructor() {
@@ -11,5 +12,6 @@ export class Boot extends Scene {
 
   create() {
     this.scene.start('preloader');
+    InputManager.sceneChange(false);
   }
 }

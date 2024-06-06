@@ -61,6 +61,8 @@ export class Game extends Scene {
     this.createExitSensors();
     this.scoreKeeper = new ScoreKeeper();
     this.setUI();
+
+    InputManager.sceneChange(true);
   }
 
   private setPhysics() {
@@ -299,8 +301,8 @@ export class Game extends Scene {
     this.lightState = false;
   }
 
-  over(time: number) {
-    this.scoreKeeper.levelCompleted(time);
+  over(time: number, completed = true) {
+    completed && this.scoreKeeper.levelCompleted(time);
     clearInterval(this.handles.fps);
     this.flags.isOver = true;
     this.scene.start('gameover');

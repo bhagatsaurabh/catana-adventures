@@ -1,4 +1,5 @@
-import { Scene } from "phaser";
+import { Scene } from 'phaser';
+import { InputManager } from '../helpers/input-manager';
 
 export class GameOver extends Scene {
   camera: Phaser.Cameras.Scene2D.Camera;
@@ -6,7 +7,7 @@ export class GameOver extends Scene {
   gameover_text: Phaser.GameObjects.Text;
 
   constructor() {
-    super("gameover");
+    super('gameover');
   }
 
   create() {
@@ -16,18 +17,20 @@ export class GameOver extends Scene {
     // this.background = this.add.image(512, 384, "background");
     // this.background.setAlpha(0.5);
 
-    this.gameover_text = this.add.text(512, 384, "Game Over", {
-      fontFamily: "Arial Black",
+    this.gameover_text = this.add.text(512, 384, 'Game Over', {
+      fontFamily: 'Arial Black',
       fontSize: 64,
-      color: "#ffffff",
-      stroke: "#000000",
+      color: '#ffffff',
+      stroke: '#000000',
       strokeThickness: 8,
-      align: "center",
+      align: 'center',
     });
     this.gameover_text.setOrigin(0.5);
 
-    this.input.once("pointerdown", () => {
-      this.scene.start("mainmenu");
+    InputManager.sceneChange(false);
+
+    this.input.once('pointerdown', () => {
+      this.scene.start('mainmenu');
     });
   }
 }

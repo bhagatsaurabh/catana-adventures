@@ -11,7 +11,26 @@
   <body>
     <div id="app">
       <div id="container"></div>
+      <div class="touch-controls">
+        <div class="left">
+          <div class="joystick">
+            <img class="control up" src="/assets/icons/up.png" :draggable="false" />
+            <img class="control down" src="/assets/icons/down.png" :draggable="false" />
+          </div>
+        </div>
+        <div class="right">
+          <div class="joystick">
+            <img class="control left" src="/assets/icons/left.png" :draggable="false" />
+            <img class="control right" src="/assets/icons/right.png" :draggable="false" />
+          </div>
+          <div class="power-attack">
+            <img src="/assets/icons/power-attack.png" :draggable="false" />
+          </div>
+          <div class="fast-attack">
+            <img src="/assets/icons/fast-attack.png" :draggable="false" />
+          </div>
+        </div>
+      </div>
     </div>
-    <!-- <script type="module" src="src/main.js"></script> -->
   </body>
 </html>
