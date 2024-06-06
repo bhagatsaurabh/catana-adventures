@@ -59,10 +59,11 @@ export class Player {
   speed: number = 0;
   health = this.config.maxHealth;
   ui: { healthBar: GameObjects.Graphics };
-  flags: { isHurting: string | false; isDead: boolean; lightState: 'on' | 'off' | false } = {
+  flags: { isHurting: string | false; isDead: boolean; lightState: 'on' | 'off' | false; isLocked: boolean } = {
     isHurting: false,
     isDead: false,
     lightState: false,
+    isLocked: false,
   };
   private standingBody: MatterJS.BodyType;
   private standingSensors: { left: MatterJS.BodyType; right: MatterJS.BodyType; bottom: MatterJS.BodyType };
@@ -81,9 +82,12 @@ export class Player {
     this.controller.sprite.flipX = value === -1;
   }
 
-  constructor(public game: Game) {
+  constructor(
+    public game: Game,
+    pos: Types.Math.Vector2Like,
+  ) {
     this.setController();
-    this.setPhysics();
+    this.setPhysics(pos);
     this.setAnimations();
     this.setHandlers();
     this.setUI();
@@ -102,6 +106,7 @@ export class Player {
   }
   private setController() {
     const sprite = this.game.matter.add.sprite(0, 0, 'neko');
+    sprite.name = 'neko';
     sprite.setPipeline('Light2D');
 
     const w = sprite.width;
@@ -140,7 +145,7 @@ export class Player {
       lastPowerAttackAt: 0,
     };
   }
-  private setPhysics() {
+  private setPhysics(pos: Types.Math.Vector2Like) {
     const bodyS = this.game.matter.bodies.rectangle(
       this.dimensions.sx,
       this.dimensions.h,
@@ -154,7 +159,7 @@ export class Player {
       restitution: 0.05,
     });
 
-    this.controller.sprite.setExistingBody(this.standingBody).setFixedRotation().setPosition(32, 800);
+    this.controller.sprite.setExistingBody(this.standingBody).setFixedRotation().setPosition(pos.x, pos.y);
     this.game.matter.body.setCentre(
       this.controller.sprite.body as MatterJS.BodyType,
       { x: 0, y: this.dimensions.h / 2 },
@@ -453,19 +458,23 @@ export class Player {
   private beforeUpdate(delta: number, time: number) {
     this.torch.source.x = this.x;
     this.torch.source.y = this.y - this.controller.sprite.height / 2;
+    this.updateUI();
+
+    if (this.flags.isLocked) return;
 
     if (this.y > this.game.map.heightInPixels) {
       this.hit(Infinity, this.direction, 'bounds');
     }
     this.applyInputs(delta, time, InputManager.input);
     this.animate(InputManager.input);
-    this.updateUI();
 
     this.controller.numTouchingSurfaces.left = 0;
     this.controller.numTouchingSurfaces.right = 0;
     this.controller.numTouchingSurfaces.bottom = 0;
   }
   private collisionActive(event: { pairs: Types.Physics.Matter.MatterCollisionPair[] }) {
+    if (this.flags.isLocked) return;
+
     const left = this.controller.sensors.left;
     const right = this.controller.sensors.right;
     const bottom = this.controller.sensors.bottom;
@@ -473,10 +482,10 @@ export class Player {
     for (let i = 0; i < event.pairs.length; i += 1) {
       const [bodyA, bodyB] = [event.pairs[i].bodyA, event.pairs[i].bodyB];
 
-      if (bodyA.gameObject?.texture?.key === 'neko' || bodyA.gameObject?.texture?.key === 'neko') {
-        if (bodyA.gameObject?.texture?.key === 'belch' || bodyB.gameObject?.texture?.key === 'belch') {
+      if (bodyA.gameObject?.name === 'neko' || bodyA.gameObject?.name === 'neko') {
+        if (bodyA.gameObject?.name?.includes('belch') || bodyB.gameObject?.name?.includes('belch')) {
           const belchGO = (
-            bodyA.gameObject?.texture?.key === 'belch' ? bodyA.gameObject : bodyB.gameObject
+            bodyA.gameObject?.name?.includes('belch') ? bodyA.gameObject : bodyB.gameObject
           ) as GameObjects.GameObject;
           const belch = this.game.objects.belches[belchGO.name];
           if (!belch!.isDestroyed) {
@@ -498,6 +507,8 @@ export class Player {
     }
   }
   private afterUpdate() {
+    if (this.flags.isLocked) return;
+
     this.controller.prevBlocked.right = this.controller.blocked.right;
     this.controller.prevBlocked.left = this.controller.blocked.left;
     this.controller.prevBlocked.bottom = this.controller.blocked.bottom;
@@ -516,5 +527,10 @@ export class Player {
     } else {
       this.hurt(direction, by);
     }
+  }
+  exit() {
+    this.flags.isLocked = true;
+    this.direction = 1;
+    this.controller.sprite.anims.play('walk');
   }
 }

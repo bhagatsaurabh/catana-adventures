@@ -38,7 +38,7 @@ export class Belch {
     (this.sprite as any).isDestroyable = (body: MatterJS.BodyType) => body === this.body;
     this.sprite.anims.play('move', true);
 
-    this.game.objects.belches[this.id] = this;
+    this.game.objects.belches[this.sprite.name] = this;
   }
 
   private setLight() {
@@ -57,7 +57,7 @@ export class Belch {
   private setSprite() {
     this.sprite = this.game.matter.add.sprite(0, 0, 'belch');
     this.sprite.setPipeline('Light2D');
-    this.sprite.name = this.id;
+    this.sprite.name = `belch-${this.id}`;
 
     const w = this.sprite.width;
     const h = this.sprite.height;
@@ -123,7 +123,11 @@ export class Belch {
         const belchBody = bodyA === this.body ? bodyA : bodyB;
         const otherBody = bodyA === belchBody ? bodyB : bodyA;
 
-        if (otherBody.gameObject?.texture?.key !== 'demon-flower' && !this.isDestroyed) {
+        if (
+          !this.isDestroyed &&
+          !otherBody.gameObject?.name?.includes('demon-flower') &&
+          !otherBody.gameObject?.name?.includes('coin')
+        ) {
           this.explode();
         }
       }

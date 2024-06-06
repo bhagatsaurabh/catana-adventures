@@ -1,15 +1,13 @@
-import { Animations, GameObjects, Math as M, Physics, Types } from 'phaser';
+import { Animations, GameObjects, Math as M, Types } from 'phaser';
 import { Game } from '../scenes/game';
-import { clampLow, denormalize, luid, normalize, rand } from '../utils';
+import { clampLow, rand } from '../utils';
 import { Fireball } from './fireball';
 import { Belch } from './belch';
+import { Monster, MonsterFlags } from './monster';
 
-interface DemonFlowerFlags {
+interface DemonFlowerFlags extends MonsterFlags {
   isAttacking: boolean;
   isBelching: boolean;
-  isHurting: boolean;
-  isDead: boolean;
-  isDestroyed: boolean;
 }
 export type DemonFlowerAnimationType = 'idle' | 'attack' | 'belch-start' | 'belch-end' | 'hurt' | 'die';
 export interface DemonFlowerConfig {
@@ -23,57 +21,32 @@ export interface DemonFlowerConfig {
 }
 export type DemonFlowerState = 'idle' | 'belch' | 'attack';
 
-export class DemonFlower {
-  id: string;
-  config: DemonFlowerConfig = {
-    belchSpeed: 4,
-    attackPower: () => rand(12, 16),
-    senseDistance: 192,
-    attackDistance: 50,
-    belchCooldown: 2000,
-    belchTimestamp: 0,
-    maxHealth: 30,
-  };
-  sprite: Physics.Matter.Sprite;
-  body: MatterJS.BodyType;
-  animations: Record<DemonFlowerAnimationType, Animations.Animation | false>;
-  flags: DemonFlowerFlags = {
-    isAttacking: false,
-    isBelching: false,
-    isHurting: false,
-    isDead: false,
-    isDestroyed: false,
-  };
-  health = this.config.maxHealth;
-  ui: { healthBar: GameObjects.Graphics };
-  get direction(): number {
-    return this.sprite.flipX ? -1 : 1;
-  }
-  set direction(value: number) {
-    this.sprite.flipX = value === -1;
+export class DemonFlower extends Monster<
+  DemonFlowerConfig,
+  DemonFlowerState,
+  DemonFlowerFlags,
+  DemonFlowerAnimationType
+> {
+  constructor(game: Game, pos: Types.Math.Vector2Like) {
+    super(
+      game,
+      'demon-flower',
+      pos,
+      'idle',
+      {
+        belchSpeed: 4,
+        attackPower: () => rand(12, 16),
+        senseDistance: 192,
+        attackDistance: 50,
+        belchCooldown: 2000,
+        belchTimestamp: 0,
+        maxHealth: 30,
+      },
+      'idle',
+    );
   }
 
-  constructor(
-    public game: Game,
-    public pos: Types.Math.Vector2Like,
-  ) {
-    this.id = luid();
-    this.setSprite();
-    this.setPhysics();
-    this.setAnimations();
-    this.setHandlers();
-    this.setUI();
-
-    (this.sprite as any).isDestroyable = (body: MatterJS.BodyType) => body === this.body;
-    this.sprite.anims.play('idle');
-  }
-
-  private setSprite() {
-    this.sprite = this.game.matter.add.sprite(0, 0, 'demon-flower');
-    this.sprite.setPipeline('Light2D');
-    this.sprite.name = `demonflower-${this.id}`;
-  }
-  private setPhysics() {
+  setPhysics() {
     const h = this.sprite.height;
 
     this.body = this.game.matter.bodies.circle(20, 20, h / 2.5, {
@@ -83,10 +56,10 @@ export class DemonFlower {
       friction: 0,
     });
 
-    this.sprite.setExistingBody(this.body).setPosition(this.pos.x, this.pos.y).setFixedRotation();
+    this.sprite.setExistingBody(this.body).setPosition(this.spawnPos.x, this.spawnPos.y).setFixedRotation();
     this.game.matter.body.setCentre(this.body, { x: 2, y: -6 }, true);
   }
-  private setAnimations() {
+  setAnimations() {
     const idle = this.sprite.anims.create({
       key: 'idle',
       frames: this.sprite.anims.generateFrameNumbers('demon-flower', {
@@ -145,48 +118,20 @@ export class DemonFlower {
       die,
     };
   }
-  private setHandlers() {
-    this.game.matter.world.on(Physics.Matter.Events.BEFORE_UPDATE, (event: { delta: number; timestamp: number }) =>
-      this.beforeUpdate(event.delta, event.timestamp),
-    );
-    this.game.matter.world.on(
-      Physics.Matter.Events.COLLISION_ACTIVE,
-      (event: { pairs: Types.Physics.Matter.MatterCollisionPair[]; timestamp: number }) => this.collisionActive(event),
-    );
-  }
-  private setUI() {
-    const healthBar = this.game.add.graphics();
-    this.ui = { healthBar };
-  }
-  private updateUI() {
-    if (this.flags.isDestroyed) return;
 
-    this.ui.healthBar.x = this.sprite.x - 10;
-    this.ui.healthBar.y = this.sprite.y - this.sprite.height / 2;
-    this.ui.healthBar.clear();
-    this.ui.healthBar.lineStyle(1, 0xffffff);
-    this.ui.healthBar.strokeRect(0, 0, 30, 4);
-    const normHealth = normalize(this.health, 0, this.config.maxHealth);
-    this.ui.healthBar.fillStyle(normHealth >= 0.75 ? 0x00ff00 : normHealth >= 0.25 ? 0xffff00 : 0xff0000);
-    this.ui.healthBar.fillRect(1, 1, denormalize(normalize(this.health, 0, this.config.maxHealth), 0, 28), 2);
-  }
-
-  private beforeUpdate(_delta: number, time: number) {
-    this.updateUI();
-
+  beforeUpdate(_delta: number, time: number) {
     if (this.flags.isHurting || this.flags.isDead) return;
 
-    let state: DemonFlowerState = 'idle';
     const distanceToPlayer = M.Distance.Between(this.sprite.x, this.sprite.y, this.game.player.x, this.game.player.y);
-    if (distanceToPlayer <= this.config.senseDistance) {
-      state = distanceToPlayer <= this.config.attackDistance ? 'attack' : 'belch';
+    if (distanceToPlayer <= this.config.senseDistance || this.flags.isBelching) {
+      this.state = distanceToPlayer <= this.config.attackDistance ? 'attack' : 'belch';
     } else {
-      state = 'idle';
+      this.state = 'idle';
     }
 
-    this.applyInputs(time, state);
+    this.applyInputs(time, this.state);
   }
-  private collisionActive(event: { pairs: Types.Physics.Matter.MatterCollisionPair[]; timestamp: number }) {
+  collisionActive(event: { pairs: Types.Physics.Matter.MatterCollisionPair[]; timestamp: number }) {
     if (this.flags.isHurting || this.flags.isDead) return;
 
     const player = this.game.player.controller.sprite;
@@ -197,16 +142,17 @@ export class DemonFlower {
       if (bodyA === this.body || bodyB === this.body) {
         if (bodyA.gameObject === player || bodyB.gameObject === player) {
           this.attack();
-        } else if (bodyA.gameObject?.texture?.key === 'fireball' || bodyB.gameObject?.texture?.key === 'fireball') {
+        } else if (bodyA.gameObject?.name?.includes('fireball') || bodyB.gameObject?.name?.includes('fireball')) {
           const fireballGO = (
-            bodyA.gameObject?.texture?.key === 'fireball' ? bodyA.gameObject : bodyB.gameObject
+            bodyA.gameObject?.name?.includes('fireball') ? bodyA.gameObject : bodyB.gameObject
           ) as GameObjects.GameObject;
-          this.hit(this.game.objects.fireballs[fireballGO.name]);
+          this.hit(event.timestamp, this.game.objects.fireballs[fireballGO.name]);
         }
         continue;
       }
     }
   }
+  afterUpdate(_delta: number, _time: number): void {}
 
   private applyInputs(time: number, state: DemonFlowerState) {
     if (state === 'belch' || state === 'attack') {
@@ -224,7 +170,6 @@ export class DemonFlower {
       this.attack();
     }
   }
-
   private attack() {
     if (this.flags.isAttacking) return;
 
@@ -240,9 +185,9 @@ export class DemonFlower {
       }
     });
   }
-  private belch(time: number) {
+  private belch(time: number, reflex = false) {
     if (this.flags.isBelching) return;
-    if (time - this.config.belchTimestamp < this.config.belchCooldown) {
+    if (time - this.config.belchTimestamp < this.config.belchCooldown && !reflex) {
       this.sprite.anims.play('idle', true);
       return;
     }
@@ -262,37 +207,36 @@ export class DemonFlower {
         .once(Animations.Events.ANIMATION_COMPLETE, () => (this.flags.isBelching = false));
     });
   }
-  hit(fireball?: Fireball) {
+  hit(time: number, fireball?: Fireball) {
     if (!fireball) return;
 
+    this.stats[fireball.type === 'high' ? 'noOfPowerAttacks' : 'noOfFastAttacks'] += 1;
     this.direction = fireball.direction * -1;
 
     this.health = clampLow(this.health - fireball.config.power, 0);
     if (this.health === 0) {
       this.die();
     } else {
-      this.hurt();
+      this.hurt(time);
     }
   }
-  private hurt() {
+  hurt(time: number) {
     this.flags.isHurting = true;
     this.flags.isAttacking = false;
     this.flags.isBelching = false;
     this.sprite.anims.play('hurt').once(Animations.Events.ANIMATION_COMPLETE, () => {
       this.flags.isHurting = false;
       this.sprite.anims.play('idle');
+      if (this.state === 'idle') {
+        this.belch(time, true);
+      }
     });
   }
-  private die() {
+  die() {
     if (this.flags.isDead) return;
 
     (this.sprite.body as MatterJS.BodyType).isSensor = true;
     this.flags.isDead = true;
-    this.sprite.anims.play('die').once(Animations.Events.ANIMATION_COMPLETE, () => this.destroy());
-  }
-  destroy() {
-    this.flags.isDestroyed = true;
-    this.sprite.destroy();
-    this.ui.healthBar.destroy();
+    this.sprite.anims.play('die').once(Animations.Events.ANIMATION_COMPLETE, () => this.dispose());
   }
 }

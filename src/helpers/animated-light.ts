@@ -23,6 +23,7 @@ export class AnimatedLight {
       duration: 1000,
       repeat: 0,
       paused: true,
+      persist: true,
       onUpdate: (tween: Tweens.Tween) => {
         this.source.setIntensity(tween.totalProgress * this.config.intensity);
       },
@@ -34,6 +35,7 @@ export class AnimatedLight {
       duration: 1000,
       repeat: 0,
       paused: true,
+      persist: true,
       onUpdate: (tween: Tweens.Tween) => {
         this.source.setIntensity((1 - tween.totalProgress) * this.config.intensity);
       },
