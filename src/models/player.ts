@@ -68,6 +68,7 @@ export class Player {
   private standingBody: MatterJS.BodyType;
   private standingSensors: { left: MatterJS.BodyType; right: MatterJS.BodyType; bottom: MatterJS.BodyType };
   torch: AnimatedLight;
+  handles: { deathCooldown?: number } = {};
 
   get x(): number {
     return this.controller.sprite.x;
@@ -453,6 +454,7 @@ export class Player {
 
     this.flags.isDead = true;
     this.controller.sprite.anims.play('dead');
+    setTimeout(() => this.game.over(0, false), 2500);
   }
 
   private beforeUpdate(delta: number, time: number) {
