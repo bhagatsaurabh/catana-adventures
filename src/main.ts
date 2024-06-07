@@ -22,8 +22,8 @@ const config: Types.Core.GameConfig = {
     default: 'matter',
     matter: {
       debug: {
-        showBody: true,
-        showStaticBody: true,
+        showBody: false,
+        showStaticBody: false,
       },
     },
   },

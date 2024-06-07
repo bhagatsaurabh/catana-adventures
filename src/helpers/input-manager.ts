@@ -107,5 +107,6 @@ export class InputManager {
   static sceneChange(canShowTouchControls: boolean) {
     InputManager.ids.touchControls.style.display =
       InputManager.isTouchSupported && canShowTouchControls ? 'flex' : 'none';
+    InputManager.ids.bgMedia.style.display = canShowTouchControls ? 'none' : 'block';
   }
 }

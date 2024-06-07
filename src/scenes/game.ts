@@ -45,7 +45,7 @@ export class Game extends Scene {
       console.log(pointer.worldX, pointer.worldY);
     }); */
 
-    this.raycaster = this.raycasterPlugin.createRaycaster({ debug: true });
+    this.raycaster = this.raycasterPlugin.createRaycaster({ debug: false });
     this.setMap();
     this.setPhysics();
     this.player = new Player(this, { x: 32, y: 800 });
