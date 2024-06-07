@@ -26,10 +26,28 @@ export class GameOver extends Scene {
       align: 'center',
     });
     this.gameover_text.setOrigin(0.5);
+    this.add
+      .text(512, 475, 'Press to Continue', {
+        fontFamily: 'Arial Black',
+        fontSize: 20,
+        color: '#ffffff',
+        stroke: '#000000',
+        strokeThickness: 8,
+        align: 'center',
+      })
+      .setOrigin(0.5);
 
     InputManager.sceneChange(false);
 
+    let isStarted = false;
     this.input.once('pointerdown', () => {
+      if (isStarted) return;
+      isStarted = true;
+      this.scene.start('mainmenu');
+    });
+    this.input.keyboard?.once('keydown', () => {
+      if (isStarted) return;
+      isStarted = true;
       this.scene.start('mainmenu');
     });
   }

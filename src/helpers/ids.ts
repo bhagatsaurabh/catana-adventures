@@ -8,5 +8,6 @@ export const loadIds = () => {
     joystickRight: document.querySelector('.right .joystick .right') as HTMLImageElement,
     powerAttack: document.querySelector('.right .power-attack') as HTMLDivElement,
     fastAttack: document.querySelector('.right .fast-attack') as HTMLDivElement,
+    bgMedia: document.querySelector('.background-media') as HTMLDivElement,
   };
 };

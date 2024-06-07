@@ -2,8 +2,6 @@ import { Scene, GameObjects } from 'phaser';
 import { InputManager } from '../helpers/input-manager';
 
 export class MainMenu extends Scene {
-  // background: GameObjects.Image;
-  // logo: GameObjects.Image;
   title: GameObjects.Text;
 
   constructor() {
@@ -11,12 +9,8 @@ export class MainMenu extends Scene {
   }
 
   create() {
-    // this.background = this.add.image(512, 384, "background");
-
-    // this.logo = this.add.image(512, 300, "logo");
-
     this.title = this.add
-      .text(512, 460, 'Main Menu', {
+      .text(512, 400, 'Press to Start', {
         fontFamily: 'Arial Black',
         fontSize: 38,
         color: '#ffffff',
@@ -27,8 +21,16 @@ export class MainMenu extends Scene {
       .setOrigin(0.5);
 
     InputManager.sceneChange(false);
-    
+
+    let isStarted = false;
     this.input.once('pointerdown', () => {
+      if (isStarted) return;
+      isStarted = true;
+      this.scene.start('game');
+    });
+    this.input.keyboard?.once('keydown', () => {
+      if (isStarted) return;
+      isStarted = true;
       this.scene.start('game');
     });
   }
