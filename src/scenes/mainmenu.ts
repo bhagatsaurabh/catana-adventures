@@ -1,5 +1,6 @@
 import { Scene, GameObjects } from 'phaser';
 import { InputManager } from '../helpers/input-manager';
+import { fullscreen } from '../helpers/fullscreen';
 
 export class MainMenu extends Scene {
   title: GameObjects.Text;
@@ -23,10 +24,11 @@ export class MainMenu extends Scene {
     InputManager.sceneChange(false);
 
     let isStarted = false;
-    this.input.once('pointerdown', () => {
+    this.input.once('pointerdown', async () => {
       if (isStarted) return;
       isStarted = true;
       this.scene.start('game');
+      await fullscreen();
     });
     this.input.keyboard?.once('keydown', () => {
       if (isStarted) return;
