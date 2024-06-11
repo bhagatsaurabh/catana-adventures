@@ -1,6 +1,6 @@
 <p align="center">
 <a href="https://catana-adventures.saurabhagat.me">
-<img width="35%" alt="TankMe" src="https://raw.githubusercontent.com/saurabh-prosoft/tank-me/main/public/assets/images/logo512.png" />
+<img width="35%" alt="TankMe" src="https://raw.githubusercontent.com/saurabh-prosoft/catana-adventures/main/public/assets/media/cover.png" />
 </a>
 </p>
 
@@ -21,7 +21,7 @@
 
 <br/>
 
-## <img height="28" alt="TankMe" src="./public/assets/media/neko-idle.gif" /> Development
+## <img height="28" alt="bullet" src="https://raw.githubusercontent.com/saurabh-prosoft/catana-adventures/main/public/assets/media/neko-idle.gif" /> Development
 
 #### Start game client
 
@@ -31,8 +31,8 @@ npm run dev
 
 <br/>
 
-## License
+## <img height="28" alt="bullet" src="https://raw.githubusercontent.com/saurabh-prosoft/catana-adventures/main/public/assets/media/neko-walk.gif" /> License
 
 [MIT](./LICENSE)
 
-Copyright &copy; 2023-present | Saurabh Bhagat
+Copyright &copy; 2023-present | <img height="16" alt="bullet" src="https://raw.githubusercontent.com/saurabh-prosoft/catana-adventures/main/public/assets/media/neko-2combo.gif" /> Saurabh Bhagat
