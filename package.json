@@ -9,7 +9,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/saurabh-prosoft/catana-adventures.git"
+    "url": "git+https://github.com/bhagatsaurabh/catana-adventures.git"
   },
   "keywords": [
     "2D-game",
@@ -21,9 +21,9 @@
   "author": "Saurabh Bhagat <saurabhbhagat98die@gmail.com> (https://saurabhagat.me)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/saurabh-prosoft/catana-adventures/issues"
+    "url": "https://github.com/bhagatsaurabh/catana-adventures/issues"
   },
-  "homepage": "https://github.com/saurabh-prosoft/catana-adventures#readme",
+  "homepage": "https://github.com/bhagatsaurabh/catana-adventures#readme",
   "devDependencies": {
     "@babel/core": "^7.23.9",
     "@babel/preset-env": "^7.23.9",
