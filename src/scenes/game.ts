@@ -28,8 +28,6 @@ export class Game extends Scene {
     belches: {},
     skulls: {},
   };
-  raycasterPlugin: PhaserRaycaster;
-  raycaster: Raycaster;
   ambientTweens: { on: Tweens.Tween; off: Tweens.Tween };
   cameraTweens: { on: Tweens.Tween; off: Tweens.Tween };
   lightState = true;
@@ -41,7 +39,6 @@ export class Game extends Scene {
   }
 
   create() {
-    this.raycaster = this.raycasterPlugin.createRaycaster({ debug: false });
     this.setMap();
     this.setPhysics();
     this.player = new Player(this, { x: 32, y: 800 });

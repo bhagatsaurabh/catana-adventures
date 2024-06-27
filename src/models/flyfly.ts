@@ -1,4 +1,4 @@
-import { Animations, GameObjects, Geom, Math as M, Types } from 'phaser';
+import { Animations, GameObjects, Math as M, Types } from 'phaser';
 import { Game } from '../scenes/game';
 import { rand, randRadial } from '../utils';
 import { Fireball } from './fireball';
@@ -50,8 +50,6 @@ export class FlyFly extends Monster<FlyFlyConfig, FlyFlyState, FlyFlyFlags, FlyF
       bottom: boolean;
     };
   };
-  ray: Raycaster.Ray;
-  intersections: Geom.Point[];
   origin: Types.Math.Vector2Like;
   nextWaypoint: Types.Math.Vector2Like = { x: 0, y: 0 };
   get x(): number {
@@ -79,7 +77,6 @@ export class FlyFly extends Monster<FlyFlyConfig, FlyFlyState, FlyFlyFlags, FlyF
       'idle',
     );
 
-    this.setVision();
     this.origin = { x: pos.x, y: pos.y };
     this.nextWaypoint = { x: pos.x, y: pos.y };
   }
@@ -168,37 +165,21 @@ export class FlyFly extends Monster<FlyFlyConfig, FlyFlyState, FlyFlyFlags, FlyF
       die,
     };
   }
-  private setVision() {
-    this.ray = this.game.raycaster.createRay({
-      origin: {
-        x: 0,
-        y: 0,
-      },
-      autoSlice: true,
-      range: this.config.chaseDistance,
-      collisionRange: this.config.chaseDistance,
-      detectionRange: this.config.chaseDistance,
-    });
-    this.game.raycaster.mapGameObjects([this.game.player.controller.sprite], true);
-    this.game.raycaster.mapGameObjects(this.game.map.getLayer('Landscape')!.tilemapLayer, false, {
-      collisionTiles: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 16, 17, 18, 19],
-    });
-  }
-  private updateVision() {
-    this.ray.setOrigin(this.x, this.y);
-    this.intersections = this.ray.castCircle();
-  }
 
   beforeUpdate(_delta: number, time: number) {
     if (this.flags.isDead) return;
 
-    this.updateVision();
-
-    if (this.intersections.find((point: any) => point?.object?.name?.includes('neko'))) {
+    const distanceToPlayer = M.Distance.Between(this.sprite.x, this.sprite.y, this.game.player.x, this.game.player.y);
+    if (distanceToPlayer <= this.config.chaseDistance) {
       this.state = 'chase';
     } else {
       this.state = 'roam';
     }
+    /* if (this.intersections.find((point: any) => point?.object?.name?.includes('neko'))) {
+      this.state = 'chase';
+    } else {
+      this.state = 'roam';
+    } */
 
     this.applyInputs(time);
 
@@ -319,7 +300,6 @@ export class FlyFly extends Monster<FlyFlyConfig, FlyFlyState, FlyFlyFlags, FlyF
   die() {
     if (this.flags.isDead) return;
 
-    this.ray.destroy();
     this.sprite.setVelocity(0);
     (this.sprite.body as MatterJS.BodyType).isSensor = true;
     this.flags.isDead = true;
