@@ -41,15 +41,10 @@ export class Game extends Scene {
   }
 
   create() {
-    /* this.input.on('pointerdown', (pointer: Input.Pointer) => {
-      console.log(pointer.worldX, pointer.worldY);
-    }); */
-
     this.raycaster = this.raycasterPlugin.createRaycaster({ debug: false });
     this.setMap();
     this.setPhysics();
     this.player = new Player(this, { x: 32, y: 800 });
-    // this.player = new Player(this, { x: 9300, y: 600 });
     this.setCamera();
     InputManager.setup();
     this.setClouds();

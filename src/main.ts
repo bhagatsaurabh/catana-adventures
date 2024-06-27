@@ -10,8 +10,8 @@ import { Game, Types } from 'phaser';
 const config: Types.Core.GameConfig = {
   type: Phaser.WEBGL,
   stableSort: false,
-  width: 1024,
-  height: 768,
+  width: 640,
+  height: 480,
   parent: 'container',
   backgroundColor: '#000000',
   scale: {
