@@ -11,12 +11,12 @@ export class MainMenu extends Scene {
 
   create() {
     this.title = this.add
-      .text(512, 400, 'Press to Start', {
+      .text(320, 250, 'Press to Start', {
         fontFamily: 'Arial Black',
-        fontSize: 38,
+        fontSize: 23,
         color: '#ffffff',
         stroke: '#000000',
-        strokeThickness: 8,
+        strokeThickness: 5,
         align: 'center',
       })
       .setOrigin(0.5);
