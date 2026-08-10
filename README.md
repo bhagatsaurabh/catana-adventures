@@ -1,5 +1,5 @@
 <p align="center">
-<a href="https://catana-adventures.saurabhagat.me">
+<a href="https://catana-adventures.saurabhagat.dev">
 <img width="35%" alt="TankMe" src="https://raw.githubusercontent.com/bhagatsaurabh/catana-adventures/main/public/assets/media/cover.png" />
 </a>
 </p>
@@ -12,7 +12,7 @@
 
 2D side-scrolling 'purr-former' starring a 'feline-tastic' hero on whisker-raising adventures !
 
-[catana-adventures.saurabhagat.me](https://catana-adventures.saurabhagat.me/)
+[catana-adventures.saurabhagat.dev](https://catana-adventures.saurabhagat.dev/)
 
 
 <p align="center">
